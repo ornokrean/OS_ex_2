@@ -3,4 +3,4 @@ project(Ex2)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_library(Ex2 uthreads.cpp cmake-build-debug/thread.cpp cmake-build-debug/thread.h)
+add_library(Ex2 uthreads.cpp thread.cpp thread.h)
