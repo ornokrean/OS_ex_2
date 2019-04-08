@@ -6,17 +6,19 @@
 #include "Thread.h"
 #include <list>
 #include <vector>
+
 using namespace std;
 
-int total_quantum_num=0; //total number of quantums started
-int running_tid=-1; // The id of the currently running thread
-int num_of_threads=0; // The total number of threads
+int total_quantum_num = 0; //total number of quantums started
+int running_tid = -1; // The id of the currently running thread
+int num_of_threads = 0; // The total number of threads
 struct itimerval timer; // The timer duh
 list<int> ready; // Queue for all ready threads
 list<int> blocked; // Queue for blocked threads
-vector<Thread> threads;
+vector<Thread *> threads;
 
-int getFirstID(){
+int getFirstID()
+{
 
 }
 
@@ -28,11 +30,14 @@ int getFirstID(){
  * function with non-positive quantum_usecs.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_init(int quantum_usecs){
-    if (quantum_usecs<=0){ return -1;}
+int uthread_init(int quantum_usecs)
+{
+    if (quantum_usecs <= 0)
+    { return -1; }
     threads.reserve(MAX_THREAD_NUM);
     return 0;
 }
+
 /*
  * Description: This function creates a new thread, whose entry point is the
  * function f with the signature void f(void). The thread is added to the end
@@ -45,8 +50,9 @@ int uthread_init(int quantum_usecs){
 */
 int uthread_spawn(void (*f)(void))
 {
-    if (num_of_threads==MAX_THREAD_NUM){return -1;}
-    threads.emplace_back(Thread(getFirstID(),STACK_SIZE));
+    if (num_of_threads == MAX_THREAD_NUM)
+    { return -1; }
+    threads.emplace_back(Thread(getFirstID(), STACK_SIZE));
 
 
 }
@@ -63,7 +69,24 @@ int uthread_spawn(void (*f)(void))
  * terminated and -1 otherwise. If a thread terminates itself or the main
  * thread is terminated, the function does not return.
 */
-int uthread_terminate(int tid);
+int uthread_terminate(int tid)
+{
+    if (tid < 0)
+    {
+        return -1;
+    }
+    if (tid == 0)
+    {
+//        do some shit
+//        free all allocs
+//        exit();
+    }
+    Thread* toDelete = threads.at(tid);
+
+    threads.at(tid) = nullptr;
+
+
+}
 
 
 /*
@@ -112,7 +135,8 @@ int uthread_get_tid();
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums(){ return total_quantum_num;}
+int uthread_get_total_quantums()
+{ return total_quantum_num; }
 
 
 /*
