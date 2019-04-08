@@ -5,13 +5,16 @@
 class Thread
 {
 private:
-    int tid;
+    unsigned int tid;
     char* stack;
     int state;
+    int quantums;
 
 public:
-    Thread(int tid, int stacksize, void (*f)(void));
-    int getTID();
+    Thread(unsigned int tid, int stacksize, void (*f)(void));
+    unsigned int getTID();
+    int getState();
+
 };
 
 #endif //EX2_THREAD_H

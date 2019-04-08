@@ -17,6 +17,10 @@ list<int> ready; // Queue for all ready threads
 list<int> blocked; // Queue for blocked threads
 vector<Thread*> threads;
 
+
+/*
+ * Description: Returns the first empty id for a thread. If no thread is empty, prints an error.
+*/
 int getFirstID()
 {
     for (int i = 1; i < MAX_THREAD_NUM; ++i)
@@ -28,6 +32,21 @@ int getFirstID()
     //TODO: Print error message
     return -1;
 }
+
+void preempt(unsigned int tid, int reason){
+    // Case: Quantum expired
+    if (reason == 0){
+        ready.push_back(tid);
+        running_tid=ready.front();
+        ready.pop_front();
+        return;
+    }
+    // Case: Terminated
+    if (reason == 2){
+
+    }
+}
+
 
 /*
  * Description: This function initializes the thread library.
@@ -77,6 +96,7 @@ int uthread_spawn(void (*f)(void))
 int uthread_terminate(int tid);
 
 
+
 /*
  * Description: This function blocks the thread with ID tid. The thread may
  * be resumed later using uthread_resume. If no thread with ID tid exists it
@@ -86,7 +106,25 @@ int uthread_terminate(int tid);
  * effect and is not considered an error.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_block(int tid);
+int uthread_block(int tid){
+    if (tid==0 || threads[tid]== nullptr){
+        //TODO: Print error message
+        return  -1;
+    }
+    //Case: Thread is running:
+    if (tid==running_tid){
+        blocked.push_back(tid);
+        running_tid=ready.front();
+        ready.pop_front();
+        return 0;
+    }
+    //Case: Thread is ready:
+    if (threads.at(tid)->getState()==0){
+        ready.remove(tid);
+        blocked.push_back(tid);
+    }
+    return 0;
+}
 
 
 /*
@@ -112,7 +150,9 @@ int uthread_sleep(unsigned int usec);
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid();
+int uthread_get_tid(){
+    return running_tid;
+}
 
 
 /*
