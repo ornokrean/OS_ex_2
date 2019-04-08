@@ -48,11 +48,12 @@ address_t translate_address(address_t addr)
 
 #endif
 
-Thread::Thread(int tid, int stacksize, void (*f)(void))
+Thread::Thread(unsigned int tid, int stacksize, void (*f)(void))
 {
     this->tid = tid;
     this->stack = new char[stacksize];
     this->state = 0;
+    this->quantums=0;
     if (tid != 0)
     {
         address_t sp, pc;
@@ -66,9 +67,7 @@ Thread::Thread(int tid, int stacksize, void (*f)(void))
     }
 }
 
-int Thread::getTID() { return this->tid; }
-
-
-
+unsigned int Thread::getTID() { return this->tid; }
+int Thread::getState(){ return this->state;}
 
 
