@@ -3,17 +3,22 @@
 #include <stdio.h>
 #include <signal.h>
 #include <sys/time.h>
-#include <queue>
 #include "Thread.h"
+#include <list>
+#include <vector>
 using namespace std;
 
-int total_quantum_num; //total number of quantums started
-int running_tid; // The id of the currently running thread
-
+int total_quantum_num=0; //total number of quantums started
+int running_tid=-1; // The id of the currently running thread
+int num_of_threads=0; // The total number of threads
 struct itimerval timer; // The timer duh
-queue<Thread> ready; // Queue for all ready threads
-queue<Thread> blocked; // Queue for blocked threads
+list<int> ready; // Queue for all ready threads
+list<int> blocked; // Queue for blocked threads
+vector<Thread> threads;
 
+int getFirstID(){
+
+}
 
 /*
  * Description: This function initializes the thread library.
@@ -24,8 +29,8 @@ queue<Thread> blocked; // Queue for blocked threads
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_init(int quantum_usecs){
-    if (quantum_usecs<=0){ return  -1;}
-
+    if (quantum_usecs<=0){ return -1;}
+    threads.reserve(MAX_THREAD_NUM);
     return 0;
 }
 /*
@@ -38,7 +43,13 @@ int uthread_init(int quantum_usecs){
  * Return value: On success, return the ID of the created thread.
  * On failure, return -1.
 */
-int uthread_spawn(void (*f)(void));
+int uthread_spawn(void (*f)(void))
+{
+    if (num_of_threads==MAX_THREAD_NUM){return -1;}
+    threads.emplace_back(Thread(getFirstID(),STACK_SIZE));
+
+
+}
 
 
 /*
@@ -101,7 +112,7 @@ int uthread_get_tid();
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums();
+int uthread_get_total_quantums(){ return total_quantum_num;}
 
 
 /*
