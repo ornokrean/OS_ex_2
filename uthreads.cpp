@@ -1,4 +1,20 @@
+#include <bits/types/timer_t.h>
 #include "uthreads.h"
+#include <stdio.h>
+#include <signal.h>
+#include <sys/time.h>
+#include <queue>
+#include "Thread.h"
+using namespace std;
+
+int total_quantum_num; //total number of quantums started
+int running_tid; // The id of the currently running thread
+
+struct itimerval timer; // The timer duh
+queue<Thread> ready; // Queue for all ready threads
+queue<Thread> blocked; // Queue for blocked threads
+
+
 /*
  * Description: This function initializes the thread library.
  * You may assume that this function is called before any other thread library
@@ -7,8 +23,11 @@
  * function with non-positive quantum_usecs.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_init(int quantum_usecs);
+int uthread_init(int quantum_usecs){
+    if (quantum_usecs<=0){ return  -1;}
 
+    return 0;
+}
 /*
  * Description: This function creates a new thread, whose entry point is the
  * function f with the signature void f(void). The thread is added to the end

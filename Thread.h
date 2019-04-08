@@ -6,10 +6,16 @@
 #define EX2_THREAD_H
 
 
-class thread
+class Thread
 {
 private:
+    int tid;
+    char* stack;
+    int state;
+
 public:
+
+
 };
 
 
