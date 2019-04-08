@@ -71,3 +71,7 @@ unsigned int Thread::getTID() { return this->tid; }
 int Thread::getState(){ return this->state;}
 
 
+void Thread::removeThread() {
+    delete [] this->stack;
+}
+

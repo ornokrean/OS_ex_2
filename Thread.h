@@ -14,7 +14,7 @@ public:
     Thread(unsigned int tid, int stacksize, void (*f)(void));
     unsigned int getTID();
     int getState();
-
+    void removeThread();
 };
 
 #endif //EX2_THREAD_H
