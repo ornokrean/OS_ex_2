@@ -6,6 +6,7 @@
 #include "Thread.h"
 #include <list>
 #include <vector>
+#include <iostream>
 
 using namespace std;
 
@@ -93,8 +94,27 @@ int uthread_spawn(void (*f)(void))
  * terminated and -1 otherwise. If a thread terminates itself or the main
  * thread is terminated, the function does not return.
 */
-int uthread_terminate(int tid);
+int uthread_terminate(int tid)
+{
 
+    if (tid < 0 ||  threads.at(tid) == nullptr)
+    {
+        return -1;
+    }
+
+    // do it anyway
+    Thread *toDelete = threads.at(tid);
+    toDelete->removeThread();
+    threads.at(tid) = nullptr;
+
+    if (tid == 0)
+    {
+//        do some shit
+//        free all allocs
+        exit(0);
+    }
+
+}
 
 
 /*
@@ -163,7 +183,8 @@ int uthread_get_tid(){
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums() { return total_quantum_num; }
+int uthread_get_total_quantums()
+{ return total_quantum_num; }
 
 
 /*
