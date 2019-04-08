@@ -15,11 +15,18 @@ int num_of_threads = 0; // The total number of threads
 struct itimerval timer; // The timer duh
 list<int> ready; // Queue for all ready threads
 list<int> blocked; // Queue for blocked threads
-vector<Thread *> threads;
+vector<Thread*> threads;
 
 int getFirstID()
 {
-
+    for (int i = 1; i < MAX_THREAD_NUM; ++i)
+    {
+        if (threads[i] == nullptr){
+            return i;
+        }
+    }
+    //TODO: Print error message
+    return -1;
 }
 
 /*
@@ -32,8 +39,7 @@ int getFirstID()
 */
 int uthread_init(int quantum_usecs)
 {
-    if (quantum_usecs <= 0)
-    { return -1; }
+    if (quantum_usecs <= 0) { return -1; }
     threads.reserve(MAX_THREAD_NUM);
     return 0;
 }
@@ -50,11 +56,10 @@ int uthread_init(int quantum_usecs)
 */
 int uthread_spawn(void (*f)(void))
 {
-    if (num_of_threads == MAX_THREAD_NUM)
-    { return -1; }
-    threads.emplace_back(Thread(getFirstID(), STACK_SIZE));
-
-
+    if (num_of_threads == MAX_THREAD_NUM) { return -1; }
+    int newtid = getFirstID();
+    *threads[newtid] = Thread(newtid, STACK_SIZE, f);
+    return newtid;
 }
 
 
@@ -69,24 +74,7 @@ int uthread_spawn(void (*f)(void))
  * terminated and -1 otherwise. If a thread terminates itself or the main
  * thread is terminated, the function does not return.
 */
-int uthread_terminate(int tid)
-{
-    if (tid < 0)
-    {
-        return -1;
-    }
-    if (tid == 0)
-    {
-//        do some shit
-//        free all allocs
-//        exit();
-    }
-    Thread* toDelete = threads.at(tid);
-
-    threads.at(tid) = nullptr;
-
-
-}
+int uthread_terminate(int tid);
 
 
 /*
@@ -135,8 +123,7 @@ int uthread_get_tid();
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums()
-{ return total_quantum_num; }
+int uthread_get_total_quantums() { return total_quantum_num; }
 
 
 /*
