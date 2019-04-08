@@ -66,8 +66,11 @@ Thread::Thread(int tid, int stacksize, void (*f)(void))
     }
 }
 
-int Thread::getTID() { return this->tid; }
+int Thread::getTID()
+{ return this->tid; }
 
+void Thread::removeThread()
+{ delete[]this->stack; }
 
 
 

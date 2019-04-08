@@ -9,9 +9,11 @@ private:
     char* stack;
     int state;
 
+
 public:
     Thread(int tid, int stacksize, void (*f)(void));
     int getTID();
+    void removeThread();
 };
 
 #endif //EX2_THREAD_H
