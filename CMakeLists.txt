@@ -3,4 +3,4 @@ project(Ex2)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_library(Ex2 uthreads.cpp thread.cpp thread.h)
+add_library(Ex2 uthreads.cpp thread.cpp thread.h demo_jmp.c demo_itimer.c)

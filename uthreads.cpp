@@ -7,7 +7,11 @@
  * function with non-positive quantum_usecs.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_init(int quantum_usecs);
+int uthread_init(int quantum_usecs){
+    if (quantum_usecs<=0){return -1;}
+    // do some shit
+    return 0;
+}
 
 /*
  * Description: This function creates a new thread, whose entry point is the
@@ -19,7 +23,9 @@ int uthread_init(int quantum_usecs);
  * Return value: On success, return the ID of the created thread.
  * On failure, return -1.
 */
-int uthread_spawn(void (*f)(void));
+int uthread_spawn(void (*f)(void)){
+
+}
 
 
 /*
