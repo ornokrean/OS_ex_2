@@ -34,7 +34,7 @@ vector<Thread *> threads;
 //============================ Helper Functions ============================//
 
 /*
- * Description: Returns the first empty id for a thread. If no thread is empty, prints an error.
+ * Description: Returns the first empty id for a thread. If no thread is empty, returns -1.
 */
 int getFirstID()
 {
@@ -45,7 +45,6 @@ int getFirstID()
             return i;
         }
     }
-    //TODO: Print error message
     return -1;
 }
 
@@ -73,7 +72,7 @@ void switch_threads()
         // Start running the next process:
         siglongjmp(*threads[running_tid]->getEnv(), 1);
     }
-    std::cout << "ERROR";
+    cout << LIB_ERR << "No running thread."; //TODO: This may be pointless!!
 }
 
 void timer_handler(int sig)
@@ -161,7 +160,7 @@ int uthread_terminate(int tid)
     // do it anyway
     Thread *toDelete = threads.at(tid);
     delete (toDelete);
-    threads.at(tid) = nullptr;
+    threads[tid] = nullptr;
 
     if (tid == 0)
     {
@@ -184,9 +183,14 @@ int uthread_terminate(int tid)
 */
 int uthread_block(int tid)
 {
-    if (tid == 0 || threads[tid] == nullptr)
+    if (tid == 0)
     {
-        //TODO: Print error message
+        cout << LIB_ERR << "Trying to block main thread (tid==0).\n";
+        return -1;
+    }
+    if (threads[tid] == nullptr)
+    {
+        cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
     //Case: Thread is running:
@@ -198,7 +202,7 @@ int uthread_block(int tid)
         return 0;
     }
     //Case: Thread is ready:
-    if (threads.at(tid)->getState() == 0)
+    if (threads[tid]->getState() == 0)
     {
         ready.remove(tid);
         blocked.push_back(tid);
@@ -262,7 +266,7 @@ int uthread_get_quantums(int tid)
 {
     if (threads[tid] == nullptr)
     {
-        cout << LIB_ERR << "No thread with id " << tid << " exists.";
+        cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
     return threads[tid]->getQuantums();
