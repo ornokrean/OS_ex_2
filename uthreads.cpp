@@ -36,6 +36,16 @@ vector<Thread *> threads;
 /*
  * Description: Returns the first empty id for a thread. If no thread is empty, returns -1.
 */
+
+int notValidTid(int tid)
+{
+    if (tid < 0 || threads.at(tid) == nullptr)
+    {
+        return -1;
+    }
+    return 0;
+}
+
 int getFirstID()
 {
     for (int i = 1; i < MAX_THREAD_NUM; ++i)
@@ -76,7 +86,6 @@ void switch_threads(int state)
 }
 
 void timer_handler(int sig)
-
 {
     switch_threads(READY);
 }
@@ -152,14 +161,17 @@ int uthread_spawn(void (*f)(void))
 */
 int uthread_terminate(int tid)
 {
-    if (tid < 0 || threads.at(tid) == nullptr)
+
+    if (notValidTid(tid))
     {
         return -1;
     }
+
     // do it anyway
     Thread *toDelete = threads.at(tid);
     delete (toDelete);
     threads[tid] = nullptr;
+
     if (tid == 0)
     {
 //        do some shit
@@ -186,7 +198,7 @@ int uthread_block(int tid)
         cout << LIB_ERR << "Trying to block main thread (tid==0).\n";
         return -1;
     }
-    if (threads[tid] == nullptr)
+    if (notValidTid(tid))
     {
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
@@ -219,8 +231,7 @@ int uthread_block(int tid)
 */
 int uthread_resume(int tid)
 {
-    if (threads[tid] == nullptr)
-    {
+    if (notValidTid(tid)){
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
@@ -273,7 +284,9 @@ int uthread_get_total_quantums() { return total_quantum_num; }
 */
 int uthread_get_quantums(int tid)
 {
-    if (threads[tid] == nullptr)
+
+
+    if (notValidTid(tid))
     {
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
