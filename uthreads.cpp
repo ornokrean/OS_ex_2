@@ -58,18 +58,26 @@ int getFirstID()
     return -1;
 }
 
-void switch_threads(int state)
+void switch_threads(int to_state)
 {
     if (threads[running_tid] != nullptr)
     {
-        int ret_val = sigsetjmp(*threads[running_tid]->getEnv(), 1); // Save the current state of the process
+        int ret_val = sigsetjmp(*threads[running_tid]->getEnv(), 1); // Save the current to_state of the process
         if (ret_val != 0)
         { // If returning from another process, exit and continue the run normally
             return;
         }
 
-        threads[running_tid]->setState(state);
-        ready.push_back(running_tid); // Push the currently running thread to the end of the ready queue
+        threads[running_tid]->setState(to_state);
+        if (to_state==READY)
+        {
+            // Push the currently running thread to the end of the ready queue
+            ready.push_back(running_tid);
+        }
+        else if (to_state==BLOCKED){
+            // Push the currently running thread to the end of the blocked queue
+            blocked.push_back(running_tid);
+        }
 
         // Update the total number of quantums and the quantums run by the specific thread.
 //        threads[running_tid]->addQuanta();
@@ -82,7 +90,7 @@ void switch_threads(int state)
         // Start running the next process:
         siglongjmp(*threads[running_tid]->getEnv(), 1);
     }
-    cout << LIB_ERR << "No running thread."; //TODO: This may be pointless!!
+
 }
 
 void timer_handler(int sig)
@@ -111,11 +119,14 @@ int uthread_init(int quantum_usecs)
     {
         printf("sigaction error.");
     }
-
-    timer.it_value.tv_sec = quantum_usecs / 1000000;        // first time interval, seconds part
-    timer.it_value.tv_usec = quantum_usecs % 1000000;                // first time interval, microseconds part
-    timer.it_interval.tv_sec = quantum_usecs / 1000000;    // following time intervals, seconds part
-    timer.it_interval.tv_usec = quantum_usecs % 1000000;            // following time intervals, microseconds part
+    // first time interval, seconds part
+    timer.it_value.tv_sec = quantum_usecs / 1000000;
+    // first time interval, microseconds part
+    timer.it_value.tv_usec = quantum_usecs % 1000000;
+    // following time intervals, seconds part
+    timer.it_interval.tv_sec = quantum_usecs / 1000000;
+    // following time intervals, microseconds part
+    timer.it_interval.tv_usec = quantum_usecs % 1000000;
 
     // Start a virtual timer. It counts down whenever this process is executing.
     if (setitimer(ITIMER_VIRTUAL, &timer, NULL))
@@ -206,10 +217,7 @@ int uthread_block(int tid)
     //Case: Thread is running:
     if (tid == running_tid)
     {
-
-        blocked.push_back(tid);
-        running_tid = ready.front();
-        ready.pop_front();
+        switch_threads(BLOCKED);
         return 0;
     }
     //Case: Thread is ready:
@@ -251,7 +259,13 @@ int uthread_resume(int tid)
  * After the sleeping time is over, the thread should go back to the end of the READY threads list.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_sleep(unsigned int usec);
+int uthread_sleep(unsigned int usec){
+    if (running_tid==0){
+        cout<<LIB_ERR<<"Main thread can't sleep. Its El Pacino.";
+        return  -1;
+    }
+
+}
 
 
 /*
