@@ -69,6 +69,8 @@ void switch_threads()
             return;
         }
 
+
+
         threads[running_tid]->setState(READY);
         ready.push_back(
                 running_tid); // Push the currently running thread to the end of the ready queue
