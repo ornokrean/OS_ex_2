@@ -36,16 +36,6 @@ vector<Thread *> threads;
 /*
  * Description: Returns the first empty id for a thread. If no thread is empty, returns -1.
 */
-
-int notValidTid(int tid)
-{
-    if (tid < 0 || threads.at(tid) == nullptr)
-    {
-        return -1;
-    }
-    return 0;
-}
-
 int getFirstID()
 {
     for (int i = 1; i < MAX_THREAD_NUM; ++i)
@@ -58,23 +48,21 @@ int getFirstID()
     return -1;
 }
 
-void switch_threads()
+void switch_threads(int state)
 {
     if (threads[running_tid] != nullptr)
     {
-        int ret_val = sigsetjmp(*threads[running_tid]->getEnv(),
-                                1); // Save the current state of the process
+        int ret_val = sigsetjmp(*threads[running_tid]->getEnv(), 1); // Save the current state of the process
         if (ret_val != 0)
         { // If returning from another process, exit and continue the run normally
             return;
         }
 
-        threads[running_tid]->setState(READY);
-        ready.push_back(
-                running_tid); // Push the currently running thread to the end of the ready queue
+        threads[running_tid]->setState(state);
+        ready.push_back(running_tid); // Push the currently running thread to the end of the ready queue
 
         // Update the total number of quantums and the quantums run by the specific thread.
-        threads[running_tid]->addQuanta(); //TODO: Assumes switch_thread is only used
+//        threads[running_tid]->addQuanta();
         total_quantum_num++;
 
         // Set the next running thread to be the first in the ready queue
@@ -88,8 +76,9 @@ void switch_threads()
 }
 
 void timer_handler(int sig)
+
 {
-    switch_threads();
+    switch_threads(READY);
 }
 
 //============================ Library Functions ============================//
@@ -103,8 +92,7 @@ void timer_handler(int sig)
 */
 int uthread_init(int quantum_usecs)
 {
-    if (quantum_usecs <= 0)
-    { return -1; }
+    if (quantum_usecs <= 0) { return -1; }
     threads.reserve(MAX_THREAD_NUM);
 
     total_quantum_num = 1; //
@@ -116,11 +104,9 @@ int uthread_init(int quantum_usecs)
     }
 
     timer.it_value.tv_sec = quantum_usecs / 1000000;        // first time interval, seconds part
-    timer.it_value.tv_usec =
-            quantum_usecs % 1000000;                // first time interval, microseconds part
+    timer.it_value.tv_usec = quantum_usecs % 1000000;                // first time interval, microseconds part
     timer.it_interval.tv_sec = quantum_usecs / 1000000;    // following time intervals, seconds part
-    timer.it_interval.tv_usec =
-            quantum_usecs % 1000000;            // following time intervals, microseconds part
+    timer.it_interval.tv_usec = quantum_usecs % 1000000;            // following time intervals, microseconds part
 
     // Start a virtual timer. It counts down whenever this process is executing.
     if (setitimer(ITIMER_VIRTUAL, &timer, NULL))
@@ -143,8 +129,7 @@ int uthread_init(int quantum_usecs)
 int uthread_spawn(void (*f)(void))
 {
 
-    if (num_of_threads == MAX_THREAD_NUM)
-    { return -1; }
+    if (num_of_threads == MAX_THREAD_NUM) { return -1; }
     int newtid = getFirstID();
     threads[newtid] = new Thread(newtid, STACK_SIZE, f);
     ready.push_back(newtid);
@@ -167,17 +152,14 @@ int uthread_spawn(void (*f)(void))
 */
 int uthread_terminate(int tid)
 {
-
-    if (notValidTid(tid))
+    if (tid < 0 || threads.at(tid) == nullptr)
     {
         return -1;
     }
-
     // do it anyway
     Thread *toDelete = threads.at(tid);
     delete (toDelete);
     threads[tid] = nullptr;
-
     if (tid == 0)
     {
 //        do some shit
@@ -204,7 +186,7 @@ int uthread_block(int tid)
         cout << LIB_ERR << "Trying to block main thread (tid==0).\n";
         return -1;
     }
-    if (notValidTid(tid))
+    if (threads[tid] == nullptr)
     {
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
@@ -219,7 +201,7 @@ int uthread_block(int tid)
         return 0;
     }
     //Case: Thread is ready:
-    if (threads[tid]->getState() == 0)
+    if (threads[tid]->getState() == READY)
     {
         ready.remove(tid);
         blocked.push_back(tid);
@@ -237,11 +219,18 @@ int uthread_block(int tid)
 */
 int uthread_resume(int tid)
 {
-    if (notValidTid(tid)){
+    if (threads[tid] == nullptr)
+    {
+        cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
-
-
+    //Case: Thread is blocked:
+    if (threads[tid]->getState() == BLOCKED)
+    {
+        blocked.remove(tid);
+        ready.push_back(tid);
+    }
+    return 0;
 }
 
 /*
@@ -258,8 +247,7 @@ int uthread_sleep(unsigned int usec);
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid()
-{ return running_tid; }
+int uthread_get_tid() { return running_tid; }
 
 
 /*
@@ -270,8 +258,7 @@ int uthread_get_tid()
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums()
-{ return total_quantum_num; }
+int uthread_get_total_quantums() { return total_quantum_num; }
 
 
 /*
@@ -286,9 +273,7 @@ int uthread_get_total_quantums()
 */
 int uthread_get_quantums(int tid)
 {
-
-
-    if (notValidTid(tid))
+    if (threads[tid] == nullptr)
     {
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
