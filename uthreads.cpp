@@ -3,11 +3,14 @@
 #include <stdio.h>
 #include <signal.h>
 #include <sys/time.h>
-#include "Thread.h"
 #include <list>
 #include <vector>
 #include <iostream>
+#include "Thread.h"
+#include <setjmp.h>
+#include <unistd.h>
 
+//============================ Globals ============================//
 using namespace std;
 
 int total_quantum_num = 0; //total number of quantums started
@@ -17,12 +20,14 @@ int num_of_threads = 0; // The total number of threads
 
 struct itimerval timer; // The timer duh
 struct sigaction sa;
-
+sigjmp_buf env[MAX_THREAD_NUM];
 
 list<int> ready; // Queue for all ready threads
 list<int> blocked; // Queue for blocked threads
 vector<Thread *> threads;
 
+
+//============================ Helper Functions ============================//
 
 /*
  * Description: Returns the first empty id for a thread. If no thread is empty, prints an error.
@@ -42,21 +47,33 @@ int getFirstID()
 
 void switch_threads()
 {
-    ready.push_back(running_tid); // Push the currently running thread to the end of the ready queue
-    // Set the next running thread to be the first in the ready queue
-    running_tid = ready.front();
-    ready.pop_front();
+    if (threads[running_tid] != nullptr)
+    {
+        int ret_val = sigsetjmp(*threads[running_tid]->getEnv(), 1); // Save the current state of the process
+        if (ret_val != 0)
+        { // If returning from another process, exit and continue the run normally
+            return;
+        }
+
+        threads[running_tid]->setState(READY);
+        ready.push_back(running_tid); // Push the currently running thread to the end of the ready queue
+
+        // Set the next running thread to be the first in the ready queue
+        running_tid = ready.front();
+        ready.pop_front();
+        threads[running_tid]->setState(RUNNING);
+        // Start running the next process:
+        siglongjmp(*threads[running_tid]->getEnv(), 1);
+    }
+    std::cout<<"ERROR";
 }
-
-
-
 
 void timer_handler(int sig)
 {
     switch_threads();
 }
 
-
+//============================ Library Functions ============================//
 /*
  * Description: This function initializes the thread library.
  * You may assume that this function is called before any other thread library
@@ -76,18 +93,16 @@ int uthread_init(int quantum_usecs)
         printf("sigaction error.");
     }
 
-    timer.it_value.tv_sec = quantum_usecs/1000000;		// first time interval, seconds part
-    timer.it_value.tv_usec = quantum_usecs;		        // first time interval, microseconds part
-    timer.it_interval.tv_sec = quantum_usecs/1000000;	// following time intervals, seconds part
-    timer.it_interval.tv_usec = quantum_usecs;	        // following time intervals, microseconds part
+    timer.it_value.tv_sec = quantum_usecs / 1000000;        // first time interval, seconds part
+    timer.it_value.tv_usec = quantum_usecs % 1000000;                // first time interval, microseconds part
+    timer.it_interval.tv_sec = quantum_usecs / 1000000;    // following time intervals, seconds part
+    timer.it_interval.tv_usec = quantum_usecs % 1000000;            // following time intervals, microseconds part
 
     // Start a virtual timer. It counts down whenever this process is executing.
     if (setitimer(ITIMER_VIRTUAL, &timer, NULL))
     {
         printf("setitimer error.");
     }
-
-
     return 0;
 }
 
@@ -103,12 +118,16 @@ int uthread_init(int quantum_usecs)
 */
 int uthread_spawn(void (*f)(void))
 {
+
     if (num_of_threads == MAX_THREAD_NUM) { return -1; }
     int newtid = getFirstID();
-    *threads[newtid] = Thread(newtid, STACK_SIZE, f);
-    return newtid;
-}
+    threads[newtid] = new Thread(newtid, STACK_SIZE, f);
+    ready.push_back(newtid);
 
+
+    return newtid;
+
+}
 
 /*
  * Description: This function terminates the thread with ID tid and deletes
@@ -131,7 +150,7 @@ int uthread_terminate(int tid)
 
     // do it anyway
     Thread *toDelete = threads.at(tid);
-    toDelete->removeThread();
+    delete (toDelete);
     threads.at(tid) = nullptr;
 
     if (tid == 0)
@@ -185,7 +204,11 @@ int uthread_block(int tid)
  * ID tid exists it is considered an error.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_resume(int tid);
+int uthread_resume(int tid)
+{
+
+
+}
 
 /*
  * Description: This function blocks the RUNNING thread for usecs micro-seconds in real time (not virtual

@@ -1,12 +1,5 @@
 #include "Thread.h"
-#include <stdio.h>
-#include <setjmp.h>
-#include <signal.h>
-#include <unistd.h>
-#include <sys/time.h>
 
-
-sigjmp_buf env[MAX_THREAD_NUM];
 
 #ifdef __x86_64__
 /* code for 64 bit Intel arch */
@@ -53,28 +46,43 @@ Thread::Thread(unsigned int tid, int stacksize, void (*f)(void))
     this->tid = tid;
     this->stack = new char[stacksize];
     this->state = READY;
-    this->quantums=0;
+    this->quantums = 0;
     if (tid != 0)
     {
         address_t sp, pc;
 
         sp = (address_t) stack + stacksize - sizeof(address_t);
         pc = (address_t) f;
-        sigsetjmp(env[tid], 1);
-        (env[tid]->__jmpbuf)[JB_SP] = translate_address(sp);
-        (env[tid]->__jmpbuf)[JB_PC] = translate_address(pc);
-        sigemptyset(&env[tid]->__saved_mask);
+        sigsetjmp(env, 1);
+        (env->__jmpbuf)[JB_SP] = translate_address(sp);
+        (env->__jmpbuf)[JB_PC] = translate_address(pc);
+        sigemptyset(&env->__saved_mask);
     }
 
 
+}
 
+Thread::~Thread()
+{
+    delete[] this->stack;
 }
 
 unsigned int Thread::getTID() { return this->tid; }
-int Thread::getState(){ return this->state;}
 
+int Thread::getState() { return this->state; }
 
-void Thread::removeThread() {
-    delete [] this->stack;
+void Thread::setState(int state)
+{
+    if (state == READY || state == BLOCKED || state == RUNNING)
+    {
+        this->state = state;
+    }
+
 }
+
+//TODO: CHECK THIS WORKS
+sigjmp_buf* Thread::getEnv() {
+    return &this->env;
+}
+
 
