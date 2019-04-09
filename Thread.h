@@ -31,7 +31,7 @@ public:
     void setState(int state);
     sigjmp_buf* getEnv();
     int getQuantums();
-    void addQuanta();
+//    void addQuanta();
 
 };
 

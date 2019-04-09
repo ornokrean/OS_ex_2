@@ -48,7 +48,7 @@ int getFirstID()
     return -1;
 }
 
-void switch_threads()
+void switch_threads(int state)
 {
     if (threads[running_tid] != nullptr)
     {
@@ -58,11 +58,11 @@ void switch_threads()
             return;
         }
 
-        threads[running_tid]->setState(READY);
+        threads[running_tid]->setState(state);
         ready.push_back(running_tid); // Push the currently running thread to the end of the ready queue
 
         // Update the total number of quantums and the quantums run by the specific thread.
-        threads[running_tid]->addQuanta(); //TODO: Assumes switch_thread is only used
+//        threads[running_tid]->addQuanta();
         total_quantum_num++;
 
         // Set the next running thread to be the first in the ready queue
@@ -77,7 +77,7 @@ void switch_threads()
 
 void timer_handler(int sig)
 {
-    switch_threads();
+    switch_threads(READY);
 }
 
 //============================ Library Functions ============================//
@@ -151,17 +151,14 @@ int uthread_spawn(void (*f)(void))
 */
 int uthread_terminate(int tid)
 {
-
     if (tid < 0 || threads.at(tid) == nullptr)
     {
         return -1;
     }
-
     // do it anyway
     Thread *toDelete = threads.at(tid);
     delete (toDelete);
     threads[tid] = nullptr;
-
     if (tid == 0)
     {
 //        do some shit
@@ -202,7 +199,7 @@ int uthread_block(int tid)
         return 0;
     }
     //Case: Thread is ready:
-    if (threads[tid]->getState() == 0)
+    if (threads[tid]->getState() == READY)
     {
         ready.remove(tid);
         blocked.push_back(tid);
@@ -220,8 +217,18 @@ int uthread_block(int tid)
 */
 int uthread_resume(int tid)
 {
-
-
+    if (threads[tid] == nullptr)
+    {
+        cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
+        return -1;
+    }
+    //Case: Thread is blocked:
+    if (threads[tid]->getState() == BLOCKED)
+    {
+        blocked.remove(tid);
+        ready.push_back(tid);
+    }
+    return 0;
 }
 
 /*

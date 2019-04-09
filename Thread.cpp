@@ -76,6 +76,9 @@ void Thread::setState(int state)
     if (state == READY || state == BLOCKED || state == RUNNING)
     {
         this->state = state;
+        if (state==RUNNING){
+            this->quantums++;
+        }
     }
 
 }
@@ -88,6 +91,6 @@ sigjmp_buf *Thread::getEnv()
 
 int Thread::getQuantums() { return this->quantums; }
 
-void Thread::addQuanta() { this->quantums++; }
+//void Thread::addQuanta() { this->quantums++; }
 
 
