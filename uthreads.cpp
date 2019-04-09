@@ -88,8 +88,10 @@ void switch_threads(int to_state)
         ready.pop_front();
         threads[running_tid]->setState(RUNNING);
 
-        for (auto v : ready)
-            std::cout << v << "\n";
+//        for (auto v : blocked)
+//            std::cout << v << "\n";
+
+
         // Start running the next process:
         siglongjmp(*threads[running_tid]->getEnv(), 1);
     }

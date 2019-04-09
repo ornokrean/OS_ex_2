@@ -58,8 +58,8 @@ int main() {
     for (;;) {
         if (gotit3) {
 //            print_ready();
-           // std::cout << "in main total: ";
-            //std::cout << total_quantums  << std::endl;
+            std::cout << "in main total: ";
+            std::cout << uthread_get_total_quantums()  << std::endl;
 
             std::cout << "in main : ";
             std::cout << uthread_get_quantums(uthread_get_tid())  << std::endl;
