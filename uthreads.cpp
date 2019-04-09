@@ -193,6 +193,7 @@ int uthread_block(int tid)
     //Case: Thread is running:
     if (tid == running_tid)
     {
+
         blocked.push_back(tid);
         running_tid = ready.front();
         ready.pop_front();
