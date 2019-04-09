@@ -3,4 +3,4 @@ project(Ex2)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_library(Ex2 uthreads.cpp Thread.cpp Thread.h)
+add_library(Ex2 uthreads.cpp Thread.cpp Thread.h my_test.cpp)

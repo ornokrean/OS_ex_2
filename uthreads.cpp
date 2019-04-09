@@ -13,10 +13,15 @@ using namespace std;
 int total_quantum_num = 0; //total number of quantums started
 int running_tid = -1; // The id of the currently running thread
 int num_of_threads = 0; // The total number of threads
+
+
 struct itimerval timer; // The timer duh
+struct sigaction sa;
+
+
 list<int> ready; // Queue for all ready threads
 list<int> blocked; // Queue for blocked threads
-vector<Thread*> threads;
+vector<Thread *> threads;
 
 
 /*
@@ -26,7 +31,8 @@ int getFirstID()
 {
     for (int i = 1; i < MAX_THREAD_NUM; ++i)
     {
-        if (threads[i] == nullptr){
+        if (threads[i] == nullptr)
+        {
             return i;
         }
     }
@@ -34,18 +40,20 @@ int getFirstID()
     return -1;
 }
 
-void preempt(unsigned int tid, int reason){
-    // Case: Quantum expired
-    if (reason == 0){
-        ready.push_back(tid);
-        running_tid=ready.front();
-        ready.pop_front();
-        return;
-    }
-    // Case: Terminated
-    if (reason == 2){
+void switch_threads()
+{
+    ready.push_back(running_tid); // Push the currently running thread to the end of the ready queue
+    // Set the next running thread to be the first in the ready queue
+    running_tid = ready.front();
+    ready.pop_front();
+}
 
-    }
+
+
+
+void timer_handler(int sig)
+{
+    switch_threads();
 }
 
 
@@ -61,6 +69,25 @@ int uthread_init(int quantum_usecs)
 {
     if (quantum_usecs <= 0) { return -1; }
     threads.reserve(MAX_THREAD_NUM);
+
+    sa.sa_handler = &timer_handler;
+    if (sigaction(SIGVTALRM, &sa, NULL) < 0)
+    {
+        printf("sigaction error.");
+    }
+
+    timer.it_value.tv_sec = quantum_usecs/1000000;		// first time interval, seconds part
+    timer.it_value.tv_usec = quantum_usecs;		        // first time interval, microseconds part
+    timer.it_interval.tv_sec = quantum_usecs/1000000;	// following time intervals, seconds part
+    timer.it_interval.tv_usec = quantum_usecs;	        // following time intervals, microseconds part
+
+    // Start a virtual timer. It counts down whenever this process is executing.
+    if (setitimer(ITIMER_VIRTUAL, &timer, NULL))
+    {
+        printf("setitimer error.");
+    }
+
+
     return 0;
 }
 
@@ -97,7 +124,7 @@ int uthread_spawn(void (*f)(void))
 int uthread_terminate(int tid)
 {
 
-    if (tid < 0 ||  threads.at(tid) == nullptr)
+    if (tid < 0 || threads.at(tid) == nullptr)
     {
         return -1;
     }
@@ -126,20 +153,24 @@ int uthread_terminate(int tid)
  * effect and is not considered an error.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_block(int tid){
-    if (tid==0 || threads[tid]== nullptr){
+int uthread_block(int tid)
+{
+    if (tid == 0 || threads[tid] == nullptr)
+    {
         //TODO: Print error message
-        return  -1;
+        return -1;
     }
     //Case: Thread is running:
-    if (tid==running_tid){
+    if (tid == running_tid)
+    {
         blocked.push_back(tid);
-        running_tid=ready.front();
+        running_tid = ready.front();
         ready.pop_front();
         return 0;
     }
     //Case: Thread is ready:
-    if (threads.at(tid)->getState()==0){
+    if (threads.at(tid)->getState() == 0)
+    {
         ready.remove(tid);
         blocked.push_back(tid);
     }
@@ -170,7 +201,8 @@ int uthread_sleep(unsigned int usec);
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid(){
+int uthread_get_tid()
+{
     return running_tid;
 }
 
@@ -183,8 +215,7 @@ int uthread_get_tid(){
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums()
-{ return total_quantum_num; }
+int uthread_get_total_quantums() { return total_quantum_num; }
 
 
 /*
