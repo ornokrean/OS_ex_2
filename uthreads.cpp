@@ -17,8 +17,8 @@
 //============================ Globals ============================//
 using namespace std;
 
-int total_quantum_num = 0; //total number of quantums started
-int running_tid = -1; // The id of the currently running thread
+int total_quantum_num = 1; //total number of quantums started
+int running_tid = 0; // The id of the currently running thread
 int num_of_threads = 0; // The total number of threads
 
 
@@ -50,7 +50,7 @@ int getFirstID()
 {
     for (int i = 1; i < MAX_THREAD_NUM; ++i)
     {
-        if (threads[i] == nullptr)
+        if (threads.at(i) == nullptr)
         {
             return i;
         }
@@ -87,6 +87,9 @@ void switch_threads(int to_state)
         running_tid = ready.front();
         ready.pop_front();
         threads[running_tid]->setState(RUNNING);
+
+        for (auto v : ready)
+            std::cout << v << "\n";
         // Start running the next process:
         siglongjmp(*threads[running_tid]->getEnv(), 1);
     }
@@ -110,9 +113,11 @@ void timer_handler(int sig)
 int uthread_init(int quantum_usecs)
 {
     if (quantum_usecs <= 0) { return -1; }
-    threads.reserve(MAX_THREAD_NUM);
+    threads.resize(MAX_THREAD_NUM);
+    threads.at(0) = new Thread(0, STACK_SIZE, nullptr);
+    threads[0]->setState(RUNNING);
 
-    total_quantum_num = 1; //
+    //total_quantum_num = 1;
 
     sa.sa_handler = &timer_handler;
     if (sigaction(SIGVTALRM, &sa, NULL) < 0)
@@ -189,7 +194,7 @@ int uthread_terminate(int tid)
 //        free all allocs
         exit(0);
     }
-
+    return 0;
 }
 
 
@@ -264,6 +269,7 @@ int uthread_sleep(unsigned int usec){
         cout<<LIB_ERR<<"Main thread can't sleep. Its El Pacino.";
         return  -1;
     }
+    return 0;
 
 }
 
@@ -305,6 +311,6 @@ int uthread_get_quantums(int tid)
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
-    return threads[tid]->getQuantums();
+    return threads.at(tid)->getQuantums();
 }
 
