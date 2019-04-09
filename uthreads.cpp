@@ -10,6 +10,10 @@
 #include <setjmp.h>
 #include <unistd.h>
 
+#define SYS_ERR "system error: "
+#define LIB_ERR "thread library error: "
+
+
 //============================ Globals ============================//
 using namespace std;
 
@@ -58,6 +62,10 @@ void switch_threads()
         threads[running_tid]->setState(READY);
         ready.push_back(running_tid); // Push the currently running thread to the end of the ready queue
 
+        // Update the total number of quantums and the quantums run by the specific thread.
+        threads[running_tid]->addQuanta(); //TODO: Assumes switch_thread is only used
+        total_quantum_num++;
+
         // Set the next running thread to be the first in the ready queue
         running_tid = ready.front();
         ready.pop_front();
@@ -65,7 +73,7 @@ void switch_threads()
         // Start running the next process:
         siglongjmp(*threads[running_tid]->getEnv(), 1);
     }
-    std::cout<<"ERROR";
+    std::cout << "ERROR";
 }
 
 void timer_handler(int sig)
@@ -86,6 +94,8 @@ int uthread_init(int quantum_usecs)
 {
     if (quantum_usecs <= 0) { return -1; }
     threads.reserve(MAX_THREAD_NUM);
+
+    total_quantum_num = 1; //
 
     sa.sa_handler = &timer_handler;
     if (sigaction(SIGVTALRM, &sa, NULL) < 0)
@@ -224,10 +234,7 @@ int uthread_sleep(unsigned int usec);
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid()
-{
-    return running_tid;
-}
+int uthread_get_tid() { return running_tid; }
 
 
 /*
@@ -251,5 +258,13 @@ int uthread_get_total_quantums() { return total_quantum_num; }
  * Return value: On success, return the number of quantums of the thread with ID tid.
  * 			     On failure, return -1.
 */
-int uthread_get_quantums(int tid);
+int uthread_get_quantums(int tid)
+{
+    if (threads[tid] == nullptr)
+    {
+        cout << LIB_ERR << "No thread with id " << tid << " exists.";
+        return -1;
+    }
+    return threads[tid]->getQuantums();
+}
 

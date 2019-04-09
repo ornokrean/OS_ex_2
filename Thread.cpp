@@ -81,8 +81,13 @@ void Thread::setState(int state)
 }
 
 //TODO: CHECK THIS WORKS
-sigjmp_buf* Thread::getEnv() {
+sigjmp_buf *Thread::getEnv()
+{
     return &this->env;
 }
+
+int Thread::getQuantums() { return this->quantums; }
+
+void Thread::addQuanta() { this->quantums++; }
 
 
