@@ -24,6 +24,9 @@ int num_of_threads = 0; // The total number of threads
 
 struct itimerval timer; // The timer duh
 struct sigaction sa;
+
+void runThread();
+
 sigjmp_buf env[MAX_THREAD_NUM];
 
 list<int> ready; // Queue for all ready threads
@@ -62,41 +65,40 @@ void switch_threads(int to_state)
 {
     if (threads[running_tid] != nullptr)
     {
-        int ret_val = sigsetjmp(*threads[running_tid]->getEnv(), 1); // Save the current to_state of the process
+        int ret_val = sigsetjmp(*threads[running_tid]->getEnv(),
+                                1); // Save the current to_state of the process
         if (ret_val != 0)
         { // If returning from another process, exit and continue the run normally
             return;
         }
 
         threads[running_tid]->setState(to_state);
-        if (to_state==READY)
+        if (to_state == READY)
         {
             // Push the currently running thread to the end of the ready queue
             ready.push_back(running_tid);
         }
-        else if (to_state==BLOCKED){
+        else if (to_state == BLOCKED)
+        {
             // Push the currently running thread to the end of the blocked queue
             blocked.push_back(running_tid);
-            threads[running_tid]->setState(BLOCKED);
         }
+        runThread();
 
-        // Update the total number of quantums and the quantums run by the specific thread.
-//        threads[running_tid]->addQuanta();
-        total_quantum_num++;
-
-        // Set the next running thread to be the first in the ready queue
-        running_tid = ready.front();
-        ready.pop_front();
-        threads[running_tid]->setState(RUNNING);
-
-//        for (auto v : blocked)
-//            std::cout << v << "\n";
-
-
-        // Start running the next process:
-        siglongjmp(*threads[running_tid]->getEnv(), 1);
     }
 
+}
+
+void runThread()
+{// Update the total number of quantums and the quantums run by the specific thread.
+    total_quantum_num++;
+    // Set the next running thread to be the first in the ready queue
+    running_tid = ready.front();
+    ready.pop_front();
+    threads[running_tid]->setState(RUNNING);
+
+    // Start running the next process:
+    siglongjmp(*threads[running_tid]->getEnv(), 1);
 }
 
 void timer_handler(int sig)
@@ -115,7 +117,8 @@ void timer_handler(int sig)
 */
 int uthread_init(int quantum_usecs)
 {
-    if (quantum_usecs <= 0) { return -1; }
+    if (quantum_usecs <= 0)
+    { return -1; }
     threads.resize(MAX_THREAD_NUM);
     threads.at(0) = new Thread(0, STACK_SIZE, nullptr);
     threads[0]->setState(RUNNING);
@@ -157,7 +160,8 @@ int uthread_init(int quantum_usecs)
 int uthread_spawn(void (*f)(void))
 {
 
-    if (num_of_threads == MAX_THREAD_NUM) { return -1; }
+    if (num_of_threads == MAX_THREAD_NUM)
+    { return -1; }
     int newtid = getFirstID();
     threads[newtid] = new Thread(newtid, STACK_SIZE, f);
     ready.push_back(newtid);
@@ -180,23 +184,48 @@ int uthread_spawn(void (*f)(void))
 */
 int uthread_terminate(int tid)
 {
+    //Case: main suicide
+    if (tid == 0)
+    {
+        ready.clear();
+        blocked.clear();
+
+
+        for (int remove = 0; remove < threads.size(); ++remove)
+        {
+            Thread *toDelete = threads.at(remove);
+            if (toDelete != nullptr)
+            {
+                delete (toDelete);
+                threads[remove] = nullptr;
+            }
+        }
+        threads.clear();
+        exit(0);
+    }
+
 
     if (notValidTid(tid))
     {
         return -1;
     }
 
-    // do it anyway
+    //Free memory of thread
     Thread *toDelete = threads.at(tid);
     delete (toDelete);
     threads[tid] = nullptr;
 
-    if (tid == 0)
+    //Remove from all threads list:
+    blocked.remove(tid);
+    ready.remove(tid);
+
+
+    //Case: suicide
+    if (running_tid == tid)
     {
-//        do some shit
-//        free all allocs
-        exit(0);
+        runThread();
     }
+
     return 0;
 }
 
@@ -248,7 +277,8 @@ int uthread_block(int tid)
 */
 int uthread_resume(int tid)
 {
-    if (notValidTid(tid)){
+    if (notValidTid(tid))
+    {
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
@@ -268,10 +298,12 @@ int uthread_resume(int tid)
  * After the sleeping time is over, the thread should go back to the end of the READY threads list.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_sleep(unsigned int usec){
-    if (running_tid==0){
-        cout<<LIB_ERR<<"Main thread can't sleep. Its El Pacino.";
-        return  -1;
+int uthread_sleep(unsigned int usec)
+{
+    if (running_tid == 0)
+    {
+        cout << LIB_ERR << "Main thread can't sleep. Its El Pacino.";
+        return -1;
     }
     return 0;
 
@@ -282,7 +314,8 @@ int uthread_sleep(unsigned int usec){
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid() { return running_tid; }
+int uthread_get_tid()
+{ return running_tid; }
 
 
 /*
@@ -293,7 +326,8 @@ int uthread_get_tid() { return running_tid; }
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums() { return total_quantum_num; }
+int uthread_get_total_quantums()
+{ return total_quantum_num; }
 
 
 /*
