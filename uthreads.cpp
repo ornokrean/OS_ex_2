@@ -20,7 +20,7 @@ using namespace std;
 int total_quantum_num = 1; //total number of quantums started
 int running_tid = 0; // The id of the currently running thread
 int num_of_threads = 0; // The total number of threads
-
+sigset_t blocked_signals;
 
 struct itimerval timer; // The timer duh
 struct sigaction sa;
@@ -165,8 +165,6 @@ int uthread_spawn(void (*f)(void))
     int newtid = getFirstID();
     threads[newtid] = new Thread(newtid, STACK_SIZE, f);
     ready.push_back(newtid);
-
-
     return newtid;
 
 }
