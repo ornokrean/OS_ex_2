@@ -375,28 +375,22 @@ int uthread_sleep(unsigned int usec)
     }
     struct timeval etime;
     gettimeofday(&etime, nullptr);
-
-
-
-
-
-
-
-
-
-    etime.tv_sec+=usec;
+    etime.tv_sec+=usec/1000000;
     etime.tv_usec+=usec%1000000;
+    sleeping.add(running_tid, etime);
 
+    if (sleeping.peek()->id==running_tid){
 
-    //    alarm(usec);
+        rtimer.it_value.tv_sec=usec/1000000;
+        rtimer.it_value.tv_usec=usec%1000000;
 
-
-    // Start a real timer. It counts down in real time.
-    if (setitimer(ITIMER_REAL, &rtimer, NULL))
-    {
-        printf("setitimer error.");
+        // Start a real timer. It counts down in real time.
+        if (setitimer(ITIMER_REAL, &rtimer, NULL))
+        {
+            printf("setitimer error.");
+        }
     }
-
+    uthread_block(running_tid);
     unblock_signals();
     return 0;
 
