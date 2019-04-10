@@ -13,7 +13,7 @@
 
 #define SYS_ERR "system error: "
 #define LIB_ERR "thread library error: "
-
+#define SLEEP 3
 
 //============================ Globals ============================//
 using namespace std;
@@ -34,12 +34,16 @@ struct sigaction sa;
 void runThread();
 
 sigjmp_buf env[MAX_THREAD_NUM];
+// Queue for all ready threads
+list<int> ready;
+// Queue for blocked threads
+list<int> blocked;
+// Queue for sleeping threads
+list<int> sleeping;
 
-list<int> ready; // Queue for all ready threads
-list<int> blocked; // Queue for blocked threads
 vector<Thread *> threads;
 
-SleepingThreadsList sleeping;
+SleepingThreadsList to_wakeup;
 
 //============================ Helper Functions ============================//
 
@@ -110,6 +114,10 @@ void switch_threads(int to_state)
         {
             // Push the currently running thread to the end of the blocked queue
             blocked.push_back(running_tid);
+        }else{
+            // Sleep:
+            sleeping.push_back(running_tid);
+            threads[running_tid]->setState(READY);
         }
         runThread();
     }
@@ -144,7 +152,38 @@ void timer_handler(int sig)
 
 void wake_thread(int sig)
 {
+    block_signals();
+    // Get the id of the thread to wake up
+    if (to_wakeup.peek() != nullptr)
+    {
+        int tid = to_wakeup.peek()->id;
+        to_wakeup.pop();
 
+        sleeping.remove(tid);
+        if (threads[tid]->getState() == READY)
+        {
+            ready.push_back(tid);
+        }
+
+
+        if (to_wakeup.peek() != nullptr)
+        {
+
+            struct timeval end_time, curr_time;
+            end_time = to_wakeup.peek()->awaken_tv;
+            gettimeofday(&curr_time, nullptr);
+
+            rtimer.it_value.tv_sec = end_time.tv_sec - curr_time.tv_sec;
+            rtimer.it_value.tv_usec = end_time.tv_usec - curr_time.tv_usec;
+
+            // Start a real timer. It counts down in real time.
+            if (setitimer(ITIMER_REAL, &rtimer, NULL))
+            {
+                printf("setitimer error.");
+            }
+        }
+    }
+    unblock_signals();
 }
 //============================ Library Functions ============================//
 /*
@@ -166,7 +205,7 @@ int uthread_init(int quantum_usecs)
     sigemptyset(&blocked_signals);
     sigaddset(&blocked_signals, SIGVTALRM);
 
-    sleeping = SleepingThreadsList();
+    to_wakeup = SleepingThreadsList();
 
     //total_quantum_num = 1;
 
@@ -224,7 +263,7 @@ int uthread_spawn(void (*f)(void))
 
     unblock_signals();
 
-    return newtid;
+    return newtid;;
 
 }
 
@@ -242,6 +281,7 @@ int uthread_spawn(void (*f)(void))
 int uthread_terminate(int tid)
 {
     block_signals();
+    //TODO:  Delete Sleep everywhere
     //Case: main suicide
     if (tid == 0)
     {
@@ -324,6 +364,7 @@ int uthread_block(int tid)
     //Case: Thread is ready:
     if (threads[tid]->getState() == READY)
     {
+        //TODO; Handle sleeping
         ready.remove(tid);
         blocked.push_back(tid);
         threads[tid]->setState(BLOCKED);
@@ -348,6 +389,8 @@ int uthread_resume(int tid)
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
+
+
     //Case: Thread is blocked:
     if (threads[tid]->getState() == BLOCKED)
     {
@@ -375,14 +418,15 @@ int uthread_sleep(unsigned int usec)
     }
     struct timeval etime;
     gettimeofday(&etime, nullptr);
-    etime.tv_sec+=usec/1000000;
-    etime.tv_usec+=usec%1000000;
-    sleeping.add(running_tid, etime);
+    etime.tv_sec += usec / 1000000;
+    etime.tv_usec += usec % 1000000;
+    to_wakeup.add(running_tid, etime);
 
-    if (sleeping.peek()->id==running_tid){
+    if (to_wakeup.peek()->id == running_tid)
+    {
 
-        rtimer.it_value.tv_sec=usec/1000000;
-        rtimer.it_value.tv_usec=usec%1000000;
+        rtimer.it_value.tv_sec = usec / 1000000;
+        rtimer.it_value.tv_usec = usec % 1000000;
 
         // Start a real timer. It counts down in real time.
         if (setitimer(ITIMER_REAL, &rtimer, NULL))
@@ -390,7 +434,9 @@ int uthread_sleep(unsigned int usec)
             printf("setitimer error.");
         }
     }
-    uthread_block(running_tid);
+    //TODO: Check that this is OK
+    switch_threads(SLEEP);
+
     unblock_signals();
     return 0;
 
