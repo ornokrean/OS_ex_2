@@ -37,9 +37,24 @@ vector<Thread *> threads;
 //============================ Helper Functions ============================//
 
 /*
+ * Block signals
+ * */
+void block_signals(){
+//    sigaddset(&blocked_signals, SIGVTALRM);
+    sigprocmask(SIG_BLOCK, &blocked_signals, NULL);
+}
+
+
+/*
+ * Unblock signals
+ * */
+void unblock_signals(){
+    sigprocmask(SIG_UNBLOCK, &blocked_signals, NULL);
+}
+
+/*
  * Description: Returns the first empty id for a thread. If no thread is empty, returns -1.
 */
-
 int notValidTid(int tid)
 {
     if (tid < 0 || threads.at(tid) == nullptr)
@@ -61,8 +76,13 @@ int getFirstID()
     return -1;
 }
 
+
+/*
+ * Switches the running thread to the given state, and runs the next ready thread.
+ * */
 void switch_threads(int to_state)
 {
+    block_signals();
     if (threads[running_tid] != nullptr)
     {
         int ret_val = sigsetjmp(*threads[running_tid]->getEnv(),
@@ -84,13 +104,14 @@ void switch_threads(int to_state)
             blocked.push_back(running_tid);
         }
         runThread();
-
     }
+    unblock_signals();
 
 }
 
 void runThread()
-{// Update the total number of quantums and the quantums run by the specific thread.
+{
+    // Update the total number of quantums and the quantums run by the specific thread.
     total_quantum_num++;
     // Set the next running thread to be the first in the ready queue
     running_tid = ready.front();
@@ -123,6 +144,11 @@ int uthread_init(int quantum_usecs)
     threads.at(0) = new Thread(0, STACK_SIZE, nullptr);
     threads[0]->setState(RUNNING);
 
+    //Initialize the thread of blocked signals.
+    sigemptyset(&blocked_signals);
+    sigaddset(&blocked_signals, SIGVTALRM);
+
+
     //total_quantum_num = 1;
 
     sa.sa_handler = &timer_handler;
@@ -144,6 +170,7 @@ int uthread_init(int quantum_usecs)
     {
         printf("setitimer error.");
     }
+
     return 0;
 }
 
@@ -159,12 +186,18 @@ int uthread_init(int quantum_usecs)
 */
 int uthread_spawn(void (*f)(void))
 {
+    block_signals();
 
     if (num_of_threads == MAX_THREAD_NUM)
     { return -1; }
+
+
     int newtid = getFirstID();
     threads[newtid] = new Thread(newtid, STACK_SIZE, f);
     ready.push_back(newtid);
+
+    unblock_signals();
+
     return newtid;
 
 }
@@ -182,13 +215,15 @@ int uthread_spawn(void (*f)(void))
 */
 int uthread_terminate(int tid)
 {
+    block_signals();
     //Case: main suicide
     if (tid == 0)
     {
+        // Clear both lists.
         ready.clear();
         blocked.clear();
 
-
+        // Free memory of each thread.
         for (int remove = 0; remove < threads.size(); ++remove)
         {
             Thread *toDelete = threads.at(remove);
@@ -223,7 +258,7 @@ int uthread_terminate(int tid)
     {
         runThread();
     }
-
+    unblock_signals();
     return 0;
 }
 
@@ -239,6 +274,7 @@ int uthread_terminate(int tid)
 */
 int uthread_block(int tid)
 {
+    block_signals();
     if (tid == 0)
     {
         cout << LIB_ERR << "Trying to block main thread (tid==0).\n";
@@ -262,6 +298,7 @@ int uthread_block(int tid)
         blocked.push_back(tid);
         threads[tid]->setState(BLOCKED);
     }
+    unblock_signals();
     return 0;
 }
 
@@ -275,6 +312,7 @@ int uthread_block(int tid)
 */
 int uthread_resume(int tid)
 {
+    block_signals();
     if (notValidTid(tid))
     {
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
@@ -286,6 +324,7 @@ int uthread_resume(int tid)
         blocked.remove(tid);
         ready.push_back(tid);
     }
+    unblock_signals();
     return 0;
 }
 
@@ -298,11 +337,13 @@ int uthread_resume(int tid)
 */
 int uthread_sleep(unsigned int usec)
 {
+    block_signals();
     if (running_tid == 0)
     {
         cout << LIB_ERR << "Main thread can't sleep. Its El Pacino.";
         return -1;
     }
+    unblock_signals();
     return 0;
 
 }
@@ -340,13 +381,13 @@ int uthread_get_total_quantums()
 */
 int uthread_get_quantums(int tid)
 {
-
-
+    block_signals();
     if (notValidTid(tid))
     {
         cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
+    unblock_signals();
     return threads.at(tid)->getQuantums();
 }
 
