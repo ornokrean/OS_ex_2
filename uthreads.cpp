@@ -9,6 +9,7 @@
 #include "Thread.h"
 #include <setjmp.h>
 #include <unistd.h>
+#include "sleeping_threads_list.h"
 
 #define SYS_ERR "system error: "
 #define LIB_ERR "thread library error: "
@@ -22,7 +23,12 @@ int running_tid = 0; // The id of the currently running thread
 int num_of_threads = 0; // The total number of threads
 sigset_t blocked_signals;
 
-struct itimerval timer; // The timer duh
+// The virtual timer that handles quantums
+struct itimerval vtimer;
+
+// The real timer that handles sleeping threads
+struct itimerval rtimer;
+
 struct sigaction sa;
 
 void runThread();
@@ -33,13 +39,15 @@ list<int> ready; // Queue for all ready threads
 list<int> blocked; // Queue for blocked threads
 vector<Thread *> threads;
 
+SleepingThreadsList sleeping;
 
 //============================ Helper Functions ============================//
 
 /*
  * Block signals
  * */
-void block_signals(){
+void block_signals()
+{
 //    sigaddset(&blocked_signals, SIGVTALRM);
     sigprocmask(SIG_BLOCK, &blocked_signals, NULL);
 }
@@ -48,7 +56,8 @@ void block_signals(){
 /*
  * Unblock signals
  * */
-void unblock_signals(){
+void unblock_signals()
+{
     sigprocmask(SIG_UNBLOCK, &blocked_signals, NULL);
 }
 
@@ -97,8 +106,7 @@ void switch_threads(int to_state)
         {
             // Push the currently running thread to the end of the ready queue
             ready.push_back(running_tid);
-        }
-        else if (to_state == BLOCKED)
+        } else if (to_state == BLOCKED)
         {
             // Push the currently running thread to the end of the blocked queue
             blocked.push_back(running_tid);
@@ -118,6 +126,12 @@ void runThread()
     ready.pop_front();
     threads[running_tid]->setState(RUNNING);
 
+//    // Restarts the timer in the case of starting after a blocked thread which didn't finish its quantum.
+//    if (setitimer(ITIMER_VIRTUAL, &timer, NULL))
+//    {
+//        printf("setitimer error.");
+//    }
+
     // Start running the next process:
     siglongjmp(*threads[running_tid]->getEnv(), 1);
 }
@@ -127,6 +141,11 @@ void timer_handler(int sig)
     switch_threads(READY);
 }
 
+
+void wake_thread(int sig)
+{
+
+}
 //============================ Library Functions ============================//
 /*
  * Description: This function initializes the thread library.
@@ -138,8 +157,7 @@ void timer_handler(int sig)
 */
 int uthread_init(int quantum_usecs)
 {
-    if (quantum_usecs <= 0)
-    { return -1; }
+    if (quantum_usecs <= 0) { return -1; }
     threads.resize(MAX_THREAD_NUM);
     threads.at(0) = new Thread(0, STACK_SIZE, nullptr);
     threads[0]->setState(RUNNING);
@@ -148,6 +166,7 @@ int uthread_init(int quantum_usecs)
     sigemptyset(&blocked_signals);
     sigaddset(&blocked_signals, SIGVTALRM);
 
+    sleeping = SleepingThreadsList();
 
     //total_quantum_num = 1;
 
@@ -156,17 +175,25 @@ int uthread_init(int quantum_usecs)
     {
         printf("sigaction error.");
     }
+
+    sa.sa_handler = &wake_thread;
+    if (sigaction(SIGALRM, &sa, NULL) < 0)
+    {
+        printf("sigaction error.");
+    }
+
+
     // first time interval, seconds part
-    timer.it_value.tv_sec = quantum_usecs / 1000000;
+    vtimer.it_value.tv_sec = quantum_usecs / 1000000;
     // first time interval, microseconds part
-    timer.it_value.tv_usec = quantum_usecs % 1000000;
+    vtimer.it_value.tv_usec = quantum_usecs % 1000000;
     // following time intervals, seconds part
-    timer.it_interval.tv_sec = quantum_usecs / 1000000;
+    vtimer.it_interval.tv_sec = quantum_usecs / 1000000;
     // following time intervals, microseconds part
-    timer.it_interval.tv_usec = quantum_usecs % 1000000;
+    vtimer.it_interval.tv_usec = quantum_usecs % 1000000;
 
     // Start a virtual timer. It counts down whenever this process is executing.
-    if (setitimer(ITIMER_VIRTUAL, &timer, NULL))
+    if (setitimer(ITIMER_VIRTUAL, &vtimer, NULL))
     {
         printf("setitimer error.");
     }
@@ -188,8 +215,7 @@ int uthread_spawn(void (*f)(void))
 {
     block_signals();
 
-    if (num_of_threads == MAX_THREAD_NUM)
-    { return -1; }
+    if (num_of_threads == MAX_THREAD_NUM) { return -1; }
 
 
     int newtid = getFirstID();
@@ -288,6 +314,10 @@ int uthread_block(int tid)
     //Case: Thread is running:
     if (tid == running_tid)
     {
+        if (setitimer(ITIMER_VIRTUAL, &vtimer, NULL))
+        {
+            printf("setitimer error.");
+        }
         switch_threads(BLOCKED);
         return 0;
     }
@@ -343,6 +373,30 @@ int uthread_sleep(unsigned int usec)
         cout << LIB_ERR << "Main thread can't sleep. Its El Pacino.";
         return -1;
     }
+    struct timeval etime;
+    gettimeofday(&etime, nullptr);
+
+
+
+
+
+
+
+
+
+    etime.tv_sec+=usec;
+    etime.tv_usec+=usec%1000000;
+
+
+    //    alarm(usec);
+
+
+    // Start a real timer. It counts down in real time.
+    if (setitimer(ITIMER_REAL, &rtimer, NULL))
+    {
+        printf("setitimer error.");
+    }
+
     unblock_signals();
     return 0;
 
@@ -353,8 +407,7 @@ int uthread_sleep(unsigned int usec)
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid()
-{ return running_tid; }
+int uthread_get_tid() { return running_tid; }
 
 
 /*
@@ -365,8 +418,7 @@ int uthread_get_tid()
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums()
-{ return total_quantum_num; }
+int uthread_get_total_quantums() { return total_quantum_num; }
 
 
 /*
