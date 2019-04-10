@@ -9,6 +9,7 @@
 #include "Thread.h"
 #include <setjmp.h>
 #include <unistd.h>
+#include <algorithm>
 #include "sleeping_threads_list.h"
 
 #define SYS_ERR "system error: "
@@ -164,7 +165,6 @@ void wake_thread(int sig)
         {
             ready.push_back(tid);
         }
-
 
         if (to_wakeup.peek() != nullptr)
         {
@@ -390,12 +390,16 @@ int uthread_resume(int tid)
         return -1;
     }
 
-
     //Case: Thread is blocked:
     if (threads[tid]->getState() == BLOCKED)
     {
+        // TODO: DEBILI
+        // Not sleeping:
+        if (!(find(sleeping.begin(), sleeping.end(), tid)!=sleeping.end())){
+            ready.push_back(tid);
+        }
         blocked.remove(tid);
-        ready.push_back(tid);
+        threads[tid]->setState(READY);
     }
     unblock_signals();
     return 0;
