@@ -67,16 +67,19 @@ Thread::~Thread()
     delete[] this->stack;
 }
 
-unsigned int Thread::getTID() { return this->tid; }
+unsigned int Thread::getTID()
+{ return this->tid; }
 
-int Thread::getState() { return this->state; }
+int Thread::getState()
+{ return this->state; }
 
 void Thread::setState(int state)
 {
     if (state == READY || state == BLOCKED || state == RUNNING)
     {
         this->state = state;
-        if (state==RUNNING){
+        if (state == RUNNING)
+        {
             this->quantums++;
         }
     }
@@ -89,7 +92,8 @@ sigjmp_buf *Thread::getEnv()
     return &this->env;
 }
 
-int Thread::getQuantums() { return this->quantums; }
+int Thread::getQuantums()
+{ return this->quantums; }
 
 //void Thread::addQuanta() { this->quantums++; }
 

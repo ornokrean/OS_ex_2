@@ -77,6 +77,7 @@ void switch_threads(int to_state)
         else if (to_state==BLOCKED){
             // Push the currently running thread to the end of the blocked queue
             blocked.push_back(running_tid);
+            threads[running_tid]->setState(BLOCKED);
         }
 
         // Update the total number of quantums and the quantums run by the specific thread.
@@ -232,6 +233,7 @@ int uthread_block(int tid)
     {
         ready.remove(tid);
         blocked.push_back(tid);
+        threads[tid]->setState(BLOCKED);
     }
     return 0;
 }

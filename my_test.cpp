@@ -17,7 +17,6 @@ void f(void) {
             gotit1 = 0;
             gotit2 = 1;
             gotit3 = 1;
-
         }
     }
 }
