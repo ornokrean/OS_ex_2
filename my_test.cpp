@@ -17,6 +17,13 @@ void f(void) {
             gotit1 = 0;
             gotit2 = 1;
             gotit3 = 1;
+
+            if((10 <= uthread_get_total_quantums()))
+            {
+                std::cout<<"here";
+                uthread_resume(2);
+
+            }
         }
     }
 }
@@ -33,16 +40,27 @@ void g(void) {
 
             if((5 <= uthread_get_total_quantums()) && uthread_get_total_quantums() <=7)
             {
-                uthread_block(1);
+                uthread_sleep(3*1000000);
+                uthread_block(2);
             }
 
-            if((8<= uthread_get_total_quantums()))
+            if((10 <= uthread_get_total_quantums()))
             {
-                if(uthread_resume(1))
-                {
-                    std::cout << "Cant do that ! " << std::endl;
-                }
+                std::cout<<"here";
+                uthread_resume(2);
+
             }
+
+
+//            if((8<= uthread_get_total_quantums())&&uthread_get_total_quantums() <=10)
+//            {
+//                uthread_block(1);
+//
+//                //                if(uthread_resume(1))
+////                {
+////                    std::cout << "Cant do that ! " << std::endl;
+////                }
+//            }
 
         }
     }

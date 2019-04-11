@@ -3,7 +3,7 @@ project(Ex2)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(Ex2 uthreads.h uthreads.cpp Thread.cpp Thread.h  sleeping_threads_list.h
+add_executable(Ex2 my_test.cpp uthreads.h uthreads.cpp Thread.cpp Thread.h  sleeping_threads_list.h
         sleeping_threads_list.cpp)
 
 

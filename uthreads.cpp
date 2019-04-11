@@ -413,10 +413,8 @@ int uthread_block(int tid)
 int uthread_resume(int tid)
 {
     block_signals();
-    cerr<<tid<<"\n";
     if (notValidTid(tid))
     {
-        cerr<<tid<<" ok \n";
 
         return -1;
     }
@@ -450,6 +448,7 @@ int uthread_sleep(unsigned int usec)
     if (running_tid == 0)
     {
 //        cerr << LIB_ERR << "Main thread can't sleep. Its El Pacino.";
+        cerr << LIB_ERR << "it's illegal to put the main thread to sleep\n";
         return -1;
     }
     struct timeval etime;
@@ -458,9 +457,9 @@ int uthread_sleep(unsigned int usec)
     etime.tv_usec += usec % 1000000;
     to_wakeup.add(running_tid, etime);
 
+    //the newbie is first in line, wake him first:
     if (to_wakeup.peek()->id == running_tid)
     {
-
         rtimer.it_value.tv_sec = usec / 1000000;
         rtimer.it_value.tv_usec = usec % 1000000;
 
