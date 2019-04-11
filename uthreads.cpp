@@ -88,17 +88,27 @@ void reset_alarm()
         struct timeval end_time, curr_time;
         end_time = to_wakeup.peek()->awaken_tv;
         gettimeofday(&curr_time, nullptr);
-
-        rtimer.it_value.tv_sec = end_time.tv_sec - curr_time.tv_sec;
-        rtimer.it_value.tv_usec = end_time.tv_usec - curr_time.tv_usec;
-        if (rtimer.it_value.tv_sec<0 || rtimer.it_value.tv_usec<0){
+        while (end_time.tv_sec - curr_time.tv_sec<0 || end_time.tv_usec - curr_time.tv_usec<0){
 //            rtimer.it_value.tv_sec=0;
 //            rtimer.it_value.tv_usec=0;
-            wake_thread(SIGALRM);
-            return;
+            int tid = to_wakeup.peek()->id;
+            to_wakeup.pop();
+
+            sleeping.remove(tid);
+            if (threads[tid]->getState() == READY)
+            {
+                ready.push_back(tid);
+            }
+
+            if (to_wakeup.peek()== nullptr){
+                return;
+            }
+            end_time = to_wakeup.peek()->awaken_tv;
+            gettimeofday(&curr_time, nullptr);
+
         }
-        printf("End %lu %lu\n", end_time.tv_sec, end_time.tv_usec);
-        printf("Curr %lu %lu\n", curr_time.tv_sec, curr_time.tv_usec);
+        rtimer.it_value.tv_sec = end_time.tv_sec - curr_time.tv_sec;
+        rtimer.it_value.tv_usec = end_time.tv_usec - curr_time.tv_usec;
         // Start a real timer. It counts down in real time.
         if (setitimer(ITIMER_REAL, &rtimer, NULL))
         {
@@ -337,7 +347,6 @@ int uthread_spawn(void (*f)(void))
 */
 int uthread_terminate(int tid)
 {
-    cerr<<tid;
     block_signals();
     //TODO:  Delete Sleep everywhere
     //Case: main suicide
@@ -360,7 +369,6 @@ int uthread_terminate(int tid)
             }
         }
         threads.clear();
-        printf("terminate \n");
         exit(0);
     }
 
