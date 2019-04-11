@@ -12,9 +12,15 @@
 #include <algorithm>
 #include "sleeping_threads_list.h"
 
+#define SLEEP 3
+
+//============================ Error Messages ============================//
+
 #define SYS_ERR "system error: "
 #define LIB_ERR "thread library error: "
-#define SLEEP 3
+
+#define MAX_TRD_ERR "Max number of threads reached.\n"
+
 
 //============================ Globals ============================//
 using namespace std;
@@ -33,6 +39,7 @@ struct itimerval rtimer;
 struct sigaction sa;
 
 void runThread();
+void wake_thread(int sig);
 
 sigjmp_buf env[MAX_THREAD_NUM];
 // Queue for all ready threads
@@ -66,8 +73,15 @@ void unblock_signals()
     sigprocmask(SIG_UNBLOCK, &blocked_signals, NULL);
 }
 
-void reset_alarm(){
 
+
+/*
+ * Resets the alarm of the real timer of the sleeping threads.
+ * If no threads are sleeping, no alarm will be activated.
+ * */
+void reset_alarm()
+{
+    block_signals();
     if (to_wakeup.peek() != nullptr)
     {
 
@@ -77,13 +91,21 @@ void reset_alarm(){
 
         rtimer.it_value.tv_sec = end_time.tv_sec - curr_time.tv_sec;
         rtimer.it_value.tv_usec = end_time.tv_usec - curr_time.tv_usec;
-
+        if (rtimer.it_value.tv_sec<0 || rtimer.it_value.tv_usec<0){
+//            rtimer.it_value.tv_sec=0;
+//            rtimer.it_value.tv_usec=0;
+            wake_thread(SIGALRM);
+            return;
+        }
+        printf("End %lu %lu\n", end_time.tv_sec, end_time.tv_usec);
+        printf("Curr %lu %lu\n", curr_time.tv_sec, curr_time.tv_usec);
         // Start a real timer. It counts down in real time.
         if (setitimer(ITIMER_REAL, &rtimer, NULL))
         {
-            printf("setitimer error.");
+            printf("setitimer error. real timer\n");
         }
     }
+    unblock_signals();
 
 }
 
@@ -92,18 +114,17 @@ void reset_alarm(){
 */
 int notValidTid(int tid)
 {
-    if (tid < 0 || tid >= MAX_THREAD_NUM || threads.at(tid) == nullptr )
+    if (tid < 0 || tid >= MAX_THREAD_NUM || threads.at(tid) == nullptr)
     {
         if (tid < 0)
         {
             cerr << LIB_ERR
-                 << "the thread id is invalid (it needs to be  between 0 to 99)\n";
-        }
-        else
+                 << "The thread id is invalid (it needs to be between 0 and "<<MAX_THREAD_NUM<<" ).\n";
+        } else
         {
 
             cerr << LIB_ERR
-                 << "the thread id's cell is empty in the threadsArr\n";
+                 << "the thread id's cell is empty in the threads vector.\n";
 
         }
         return -1;
@@ -111,6 +132,9 @@ int notValidTid(int tid)
     return 0;
 }
 
+/*
+ * Return the first available id for a thread.
+ * */
 int getFirstID()
 {
     for (int i = 1; i < MAX_THREAD_NUM; ++i)
@@ -121,7 +145,7 @@ int getFirstID()
         }
     }
     cerr << LIB_ERR
-         << "you reached the max number of threads\n";
+         << MAX_TRD_ERR;
     return -1;
 }
 
@@ -146,13 +170,11 @@ void switch_threads(int to_state)
         {
             // Push the currently running thread to the end of the ready queue
             ready.push_back(running_tid);
-        }
-        else if (to_state == BLOCKED)
+        } else if (to_state == BLOCKED)
         {
             // Push the currently running thread to the end of the blocked queue
             blocked.push_back(running_tid);
-        }
-        else
+        } else
         {
             // Sleep:
             sleeping.push_back(running_tid);
@@ -235,6 +257,7 @@ int uthread_init(int quantum_usecs)
     //Initialize the thread of blocked signals.
     sigemptyset(&blocked_signals);
     sigaddset(&blocked_signals, SIGVTALRM);
+    sigaddset(&blocked_signals, SIGALRM);
 
     to_wakeup = SleepingThreadsList();
 
@@ -265,7 +288,7 @@ int uthread_init(int quantum_usecs)
     // Start a virtual timer. It counts down whenever this process is executing.
     if (setitimer(ITIMER_VIRTUAL, &vtimer, NULL))
     {
-        printf("setitimer error.");
+        printf("setitimer error. virtual timer");
     }
 
     return 0;
@@ -284,11 +307,9 @@ int uthread_init(int quantum_usecs)
 int uthread_spawn(void (*f)(void))
 {
     block_signals();
-    if (num_of_threads+1 >= MAX_THREAD_NUM)
+    if (num_of_threads + 1 >= MAX_THREAD_NUM)
     {
-
-        cerr << LIB_ERR
-             << "you reached the max number of threads\n";
+        cerr << LIB_ERR << MAX_TRD_ERR;
         return -1;
     }
 
@@ -296,7 +317,6 @@ int uthread_spawn(void (*f)(void))
     threads[newtid] = new Thread(newtid, STACK_SIZE, f);
     ready.push_back(newtid);
     num_of_threads++;
-
 
     unblock_signals();
 
@@ -317,6 +337,7 @@ int uthread_spawn(void (*f)(void))
 */
 int uthread_terminate(int tid)
 {
+    cerr<<tid;
     block_signals();
     //TODO:  Delete Sleep everywhere
     //Case: main suicide
@@ -331,6 +352,7 @@ int uthread_terminate(int tid)
         for (int remove = 0; remove < threads.size(); ++remove)
         {
             Thread *toDelete = threads[remove];
+            to_wakeup.remove_thread(remove);
             if (toDelete != nullptr)
             {
                 delete (toDelete);
@@ -338,11 +360,13 @@ int uthread_terminate(int tid)
             }
         }
         threads.clear();
+        printf("terminate \n");
         exit(0);
     }
 
     if (notValidTid(tid))
     {
+        cerr<<LIB_ERR<<"";
         return -1;
     }
 
@@ -468,20 +492,8 @@ int uthread_sleep(unsigned int usec)
     etime.tv_sec += usec / 1000000;
     etime.tv_usec += usec % 1000000;
     to_wakeup.add(running_tid, etime);
-
-    //the newbie is first in line, wake him first:
-    if (to_wakeup.peek()->id == running_tid)
-    {
-        rtimer.it_value.tv_sec = usec / 1000000;
-        rtimer.it_value.tv_usec = usec % 1000000;
-
-        // Start a real timer. It counts down in real time.
-        if (setitimer(ITIMER_REAL, &rtimer, NULL))
-        {
-            printf("setitimer error.");
-        }
-    }
     //TODO: Check that this is OK
+    reset_alarm();
     switch_threads(SLEEP);
 
     unblock_signals();
@@ -494,8 +506,7 @@ int uthread_sleep(unsigned int usec)
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid()
-{ return running_tid; }
+int uthread_get_tid() { return running_tid; }
 
 
 /*
@@ -506,8 +517,7 @@ int uthread_get_tid()
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums()
-{ return total_quantum_num; }
+int uthread_get_total_quantums() { return total_quantum_num; }
 
 
 /*
