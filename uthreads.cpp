@@ -71,8 +71,20 @@ void unblock_signals()
 */
 int notValidTid(int tid)
 {
-    if (tid < 0 || threads.at(tid) == nullptr)
+    if (tid < 0 || tid >= MAX_THREAD_NUM || threads.at(tid) == nullptr )
     {
+        if (tid < 0)
+        {
+            cerr << LIB_ERR
+                 << "the thread id is invalid (it needs to be  between 0 to 99)\n";
+        }
+        else
+        {
+
+            cerr << LIB_ERR
+                 << "the thread id's cell is empty in the threadsArr\n";
+
+        }
         return -1;
     }
     return 0;
@@ -87,6 +99,8 @@ int getFirstID()
             return i;
         }
     }
+    cerr << LIB_ERR
+         << "you reached the max number of threads\n";
     return -1;
 }
 
@@ -99,8 +113,8 @@ void switch_threads(int to_state)
     block_signals();
     if (threads[running_tid] != nullptr)
     {
-        int ret_val = sigsetjmp(*threads[running_tid]->getEnv(),
-                                1); // Save the current to_state of the process
+        // Save the current to_state of the process
+        int ret_val = sigsetjmp(*threads[running_tid]->getEnv(), 1);
         if (ret_val != 0)
         { // If returning from another process, exit and continue the run normally
             return;
@@ -111,11 +125,14 @@ void switch_threads(int to_state)
         {
             // Push the currently running thread to the end of the ready queue
             ready.push_back(running_tid);
-        } else if (to_state == BLOCKED)
+        }
+        else if (to_state == BLOCKED)
         {
             // Push the currently running thread to the end of the blocked queue
             blocked.push_back(running_tid);
-        }else{
+        }
+        else
+        {
             // Sleep:
             sleeping.push_back(running_tid);
             threads[running_tid]->setState(READY);
@@ -196,7 +213,12 @@ void wake_thread(int sig)
 */
 int uthread_init(int quantum_usecs)
 {
-    if (quantum_usecs <= 0) { return -1; }
+    if (quantum_usecs <= 0)
+    {
+        cerr << LIB_ERR
+             << "quantum_usecs must be positive\n";
+        return -1;
+    }
     threads.resize(MAX_THREAD_NUM);
     threads.at(0) = new Thread(0, STACK_SIZE, nullptr);
     threads[0]->setState(RUNNING);
@@ -253,17 +275,23 @@ int uthread_init(int quantum_usecs)
 int uthread_spawn(void (*f)(void))
 {
     block_signals();
+    if (num_of_threads+1 >= MAX_THREAD_NUM)
+    {
 
-    if (num_of_threads == MAX_THREAD_NUM) { return -1; }
-
+        cerr << LIB_ERR
+             << "you reached the max number of threads\n";
+        return -1;
+    }
 
     int newtid = getFirstID();
     threads[newtid] = new Thread(newtid, STACK_SIZE, f);
     ready.push_back(newtid);
+    num_of_threads++;
+
 
     unblock_signals();
 
-    return newtid;;
+    return newtid;
 
 }
 
@@ -285,14 +313,14 @@ int uthread_terminate(int tid)
     //Case: main suicide
     if (tid == 0)
     {
-        // Clear both lists.
+        // Clear all lists.
         ready.clear();
         blocked.clear();
-
+        sleeping.clear();
         // Free memory of each thread.
         for (int remove = 0; remove < threads.size(); ++remove)
         {
-            Thread *toDelete = threads.at(remove);
+            Thread *toDelete = threads[remove];
             if (toDelete != nullptr)
             {
                 delete (toDelete);
@@ -303,7 +331,6 @@ int uthread_terminate(int tid)
         exit(0);
     }
 
-
     if (notValidTid(tid))
     {
         return -1;
@@ -313,10 +340,13 @@ int uthread_terminate(int tid)
     Thread *toDelete = threads.at(tid);
     delete (toDelete);
     threads[tid] = nullptr;
+    num_of_threads--;
 
     //Remove from all threads list:
     blocked.remove(tid);
     ready.remove(tid);
+    // TODO can we terminate sleeping?
+    sleeping.remove(tid);
 
 
     //Case: suicide
@@ -343,12 +373,11 @@ int uthread_block(int tid)
     block_signals();
     if (tid == 0)
     {
-        cout << LIB_ERR << "Trying to block main thread (tid==0).\n";
+        cerr << LIB_ERR << "it's illegal to block the main thread\n";
         return -1;
     }
     if (notValidTid(tid))
     {
-        cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
     //Case: Thread is running:
@@ -384,9 +413,11 @@ int uthread_block(int tid)
 int uthread_resume(int tid)
 {
     block_signals();
+    cerr<<tid<<"\n";
     if (notValidTid(tid))
     {
-        cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
+        cerr<<tid<<" ok \n";
+
         return -1;
     }
 
@@ -395,7 +426,8 @@ int uthread_resume(int tid)
     {
         // TODO: DEBILI
         // Not sleeping:
-        if (!(find(sleeping.begin(), sleeping.end(), tid)!=sleeping.end())){
+        if (!(find(sleeping.begin(), sleeping.end(), tid) != sleeping.end()))
+        {
             ready.push_back(tid);
         }
         blocked.remove(tid);
@@ -417,7 +449,7 @@ int uthread_sleep(unsigned int usec)
     block_signals();
     if (running_tid == 0)
     {
-        cout << LIB_ERR << "Main thread can't sleep. Its El Pacino.";
+//        cerr << LIB_ERR << "Main thread can't sleep. Its El Pacino.";
         return -1;
     }
     struct timeval etime;
@@ -451,7 +483,8 @@ int uthread_sleep(unsigned int usec)
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid() { return running_tid; }
+int uthread_get_tid()
+{ return running_tid; }
 
 
 /*
@@ -462,7 +495,8 @@ int uthread_get_tid() { return running_tid; }
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums() { return total_quantum_num; }
+int uthread_get_total_quantums()
+{ return total_quantum_num; }
 
 
 /*
@@ -480,7 +514,6 @@ int uthread_get_quantums(int tid)
     block_signals();
     if (notValidTid(tid))
     {
-        cout << LIB_ERR << "No thread with id " << tid << " exists.\n";
         return -1;
     }
     unblock_signals();
