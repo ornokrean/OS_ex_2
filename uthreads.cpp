@@ -66,6 +66,27 @@ void unblock_signals()
     sigprocmask(SIG_UNBLOCK, &blocked_signals, NULL);
 }
 
+void reset_alarm(){
+
+    if (to_wakeup.peek() != nullptr)
+    {
+
+        struct timeval end_time, curr_time;
+        end_time = to_wakeup.peek()->awaken_tv;
+        gettimeofday(&curr_time, nullptr);
+
+        rtimer.it_value.tv_sec = end_time.tv_sec - curr_time.tv_sec;
+        rtimer.it_value.tv_usec = end_time.tv_usec - curr_time.tv_usec;
+
+        // Start a real timer. It counts down in real time.
+        if (setitimer(ITIMER_REAL, &rtimer, NULL))
+        {
+            printf("setitimer error.");
+        }
+    }
+
+}
+
 /*
  * Description: Returns the first empty id for a thread. If no thread is empty, returns -1.
 */
@@ -182,26 +203,14 @@ void wake_thread(int sig)
         {
             ready.push_back(tid);
         }
-
-        if (to_wakeup.peek() != nullptr)
-        {
-
-            struct timeval end_time, curr_time;
-            end_time = to_wakeup.peek()->awaken_tv;
-            gettimeofday(&curr_time, nullptr);
-
-            rtimer.it_value.tv_sec = end_time.tv_sec - curr_time.tv_sec;
-            rtimer.it_value.tv_usec = end_time.tv_usec - curr_time.tv_usec;
-
-            // Start a real timer. It counts down in real time.
-            if (setitimer(ITIMER_REAL, &rtimer, NULL))
-            {
-                printf("setitimer error.");
-            }
-        }
+        reset_alarm();
     }
     unblock_signals();
 }
+
+
+
+
 //============================ Library Functions ============================//
 /*
  * Description: This function initializes the thread library.
@@ -317,6 +326,7 @@ int uthread_terminate(int tid)
         ready.clear();
         blocked.clear();
         sleeping.clear();
+
         // Free memory of each thread.
         for (int remove = 0; remove < threads.size(); ++remove)
         {
@@ -345,9 +355,11 @@ int uthread_terminate(int tid)
     //Remove from all threads list:
     blocked.remove(tid);
     ready.remove(tid);
-    // TODO can we terminate sleeping?
     sleeping.remove(tid);
-
+    //Remove the thread from the queue of threads to wake up
+    to_wakeup.remove_thread(tid);
+    //start the clock once again
+    reset_alarm();
 
     //Case: suicide
     if (running_tid == tid)

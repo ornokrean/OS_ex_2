@@ -40,6 +40,7 @@ public:
      * If the list is empty, it returns null.
     */
     wake_up_info* peek();
+    void remove_thread(int tid);
 
 };
 
