@@ -73,10 +73,9 @@ void unblock_signals()
     sigprocmask(SIG_UNBLOCK, &blocked_signals, NULL);
 }
 
-
-
 /*
  * Resets the alarm of the real timer of the sleeping threads.
+ *
  * If no threads are sleeping, no alarm will be activated.
  * */
 void reset_alarm()
@@ -86,11 +85,11 @@ void reset_alarm()
     {
 
         struct timeval end_time, curr_time;
+        //TODO: Move this to wake up function?
+        //TODO: Since this function is also called not when waking up a thread, but also in uthread_sleep
         end_time = to_wakeup.peek()->awaken_tv;
         gettimeofday(&curr_time, nullptr);
         while (end_time.tv_sec - curr_time.tv_sec<0 || end_time.tv_usec - curr_time.tv_usec<0){
-//            rtimer.it_value.tv_sec=0;
-//            rtimer.it_value.tv_usec=0;
             int tid = to_wakeup.peek()->id;
             to_wakeup.pop();
 
@@ -101,6 +100,7 @@ void reset_alarm()
             }
 
             if (to_wakeup.peek()== nullptr){
+                unblock_signals();
                 return;
             }
             end_time = to_wakeup.peek()->awaken_tv;
@@ -172,6 +172,7 @@ void switch_threads(int to_state)
         int ret_val = sigsetjmp(*threads[running_tid]->getEnv(), 1);
         if (ret_val != 0)
         { // If returning from another process, exit and continue the run normally
+            unblock_signals();
             return;
         }
 
@@ -320,6 +321,7 @@ int uthread_spawn(void (*f)(void))
     if (num_of_threads + 1 >= MAX_THREAD_NUM)
     {
         cerr << LIB_ERR << MAX_TRD_ERR;
+        unblock_signals();
         return -1;
     }
 
@@ -375,6 +377,7 @@ int uthread_terminate(int tid)
     if (notValidTid(tid))
     {
         cerr<<LIB_ERR<<"";
+        unblock_signals();
         return -1;
     }
 
@@ -418,10 +421,12 @@ int uthread_block(int tid)
     if (tid == 0)
     {
         cerr << LIB_ERR << "it's illegal to block the main thread\n";
+        unblock_signals();
         return -1;
     }
     if (notValidTid(tid))
     {
+        unblock_signals();
         return -1;
     }
     //Case: Thread is running:
@@ -459,7 +464,7 @@ int uthread_resume(int tid)
     block_signals();
     if (notValidTid(tid))
     {
-
+        unblock_signals();
         return -1;
     }
 
@@ -493,6 +498,7 @@ int uthread_sleep(unsigned int usec)
     {
 //        cerr << LIB_ERR << "Main thread can't sleep. Its El Pacino.";
         cerr << LIB_ERR << "it's illegal to put the main thread to sleep\n";
+        unblock_signals();
         return -1;
     }
     struct timeval etime;
@@ -543,6 +549,7 @@ int uthread_get_quantums(int tid)
     block_signals();
     if (notValidTid(tid))
     {
+        unblock_signals();
         return -1;
     }
     unblock_signals();
