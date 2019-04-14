@@ -30,16 +30,14 @@ int running_tid = 0; // The id of the currently running thread
 int num_of_threads = 0; // The total number of threads
 sigset_t blocked_signals;
 
+
+struct sigaction sa;
 // The virtual timer that handles quantums
 struct itimerval vtimer;
 
+struct sigaction rsa;
 // The real timer that handles sleeping threads
 struct itimerval rtimer;
-
-struct sigaction sa;
-
-void runThread();
-void wake_thread(int sig);
 
 sigjmp_buf env[MAX_THREAD_NUM];
 // Queue for all ready threads
@@ -53,6 +51,9 @@ vector<Thread *> threads;
 
 SleepingThreadsList to_wakeup;
 
+void runThread();
+
+void wake_thread(int sig);
 //============================ Helper Functions ============================//
 
 /*
@@ -73,6 +74,7 @@ void unblock_signals()
     sigprocmask(SIG_UNBLOCK, &blocked_signals, NULL);
 }
 
+
 /*
  * Resets the alarm of the real timer of the sleeping threads.
  *
@@ -83,40 +85,45 @@ void reset_alarm()
     block_signals();
     if (to_wakeup.peek() != nullptr)
     {
-
-        struct timeval end_time, curr_time;
-        //TODO: Move this to wake up function?
-        //TODO: Since this function is also called not when waking up a thread, but also in uthread_sleep
-        end_time = to_wakeup.peek()->awaken_tv;
+        struct timeval  curr_time;
         gettimeofday(&curr_time, nullptr);
-        while (end_time.tv_sec - curr_time.tv_sec<0 || end_time.tv_usec - curr_time.tv_usec<0){
-            int tid = to_wakeup.peek()->id;
-            to_wakeup.pop();
+        timersub(&to_wakeup.peek()->awaken_tv, &curr_time, &rtimer.it_value);
+//        while (end_time.tv_sec - curr_time.tv_sec <= 0 || end_time.tv_usec - curr_time.tv_usec <= 0)
+//        {
+//            int tid = to_wakeup.peek()->id;
+//            to_wakeup.pop();
+//
+//            sleeping.remove(tid);
+//            //Case: Thread wasn't blocked while it was sleeping:
+//            if (threads[tid]->getState() == READY)
+//            {
+//                ready.push_back(tid);
+//            }
+//            //Case: No more threads to wake up: No need to set a new alarm:
+//            if (to_wakeup.peek() == nullptr)
+//            {
+//                unblock_signals();
+//                return;
+//            }
+//            end_time = to_wakeup.peek()->awaken_tv;
+//            gettimeofday(&curr_time, nullptr);
+//
+//        }
+//        rtimer.it_value.tv_sec = end_time.tv_sec - curr_time.tv_sec;
+//        rtimer.it_value.tv_usec = end_time.tv_usec - curr_time.tv_usec;
 
-            sleeping.remove(tid);
-            if (threads[tid]->getState() == READY)
-            {
-                ready.push_back(tid);
-            }
-
-            if (to_wakeup.peek()== nullptr){
-                unblock_signals();
-                return;
-            }
-            end_time = to_wakeup.peek()->awaken_tv;
-            gettimeofday(&curr_time, nullptr);
-
-        }
-        rtimer.it_value.tv_sec = end_time.tv_sec - curr_time.tv_sec;
-        rtimer.it_value.tv_usec = end_time.tv_usec - curr_time.tv_usec;
-        // Start a real timer. It counts down in real time.
-        if (setitimer(ITIMER_REAL, &rtimer, NULL))
-        {
-            printf("setitimer error. real timer\n");
-        }
+    } else
+    {
+        //TODO: Plaster
+        rtimer.it_value.tv_sec = 0;
+        rtimer.it_value.tv_usec = 0;
+    }
+    // Start a real timer. It counts down in real time.
+    if (setitimer(ITIMER_REAL, &rtimer, NULL))
+    {
+        printf("setitimer error. real timer\n");
     }
     unblock_signals();
-
 }
 
 /*
@@ -129,12 +136,12 @@ int notValidTid(int tid)
         if (tid < 0)
         {
             cerr << LIB_ERR
-                 << "The thread id is invalid (it needs to be between 0 and "<<MAX_THREAD_NUM<<" ).\n";
+                 << "The thread id is invalid (it needs to be between 0 and " << MAX_THREAD_NUM << " ).\n";
         } else
         {
 
             cerr << LIB_ERR
-                 << "the thread id's cell is empty in the threads vector.\n";
+                 << "No thread with id <<" << tid << ".\n";
 
         }
         return -1;
@@ -166,9 +173,10 @@ int getFirstID()
 void switch_threads(int to_state)
 {
     block_signals();
+
     if (threads[running_tid] != nullptr)
     {
-        // Save the current to_state of the process
+        // Save the current context of the thread
         int ret_val = sigsetjmp(*threads[running_tid]->getEnv(), 1);
         if (ret_val != 0)
         { // If returning from another process, exit and continue the run normally
@@ -189,8 +197,15 @@ void switch_threads(int to_state)
         {
             // Sleep:
             sleeping.push_back(running_tid);
+            // Set the state of the thread to ready, to signal that it isn't blocked, so when waking up,
+            // will be returned to ready queue
             threads[running_tid]->setState(READY);
         }
+//        printf("Ready list:\n");
+//        for (auto i: ready)
+//        {
+//            printf("%d\n", i);
+//        }
         runThread();
     }
     unblock_signals();
@@ -224,20 +239,31 @@ void timer_handler(int sig)
 
 void wake_thread(int sig)
 {
+    cerr << "Entered WAKE UP!!!!! \n";
     block_signals();
-    // Get the id of the thread to wake up
-    if (to_wakeup.peek() != nullptr)
+    do
     {
-        int tid = to_wakeup.peek()->id;
-        to_wakeup.pop();
-
-        sleeping.remove(tid);
-        if (threads[tid]->getState() == READY)
+        // Get the id of the thread to wake up
+        if (to_wakeup.peek() != nullptr)
         {
-            ready.push_back(tid);
+            int tid = to_wakeup.peek()->id;
+            to_wakeup.pop();
+            cerr << "Waking up: %d\n" << tid;
+            sleeping.remove(tid);
+            // Case: Thread wasn't blocked while sleeping:
+            if (threads[tid]->getState() == READY)
+            {
+                ready.push_back(tid);
+            }
+            struct timeval curr_time;
+            gettimeofday(&curr_time, nullptr);
+            if (to_wakeup.peek() != nullptr)
+            {
+                timersub(&to_wakeup.peek()->awaken_tv, &curr_time, &rtimer.it_value);
+            }
         }
-        reset_alarm();
-    }
+    } while (rtimer.it_value.tv_sec <= 0 || rtimer.it_value.tv_usec <= 0);
+    reset_alarm();
     unblock_signals();
 }
 
@@ -280,8 +306,8 @@ int uthread_init(int quantum_usecs)
         printf("sigaction error.");
     }
 
-    sa.sa_handler = &wake_thread;
-    if (sigaction(SIGALRM, &sa, NULL) < 0)
+    rsa.sa_handler = &wake_thread;
+    if (sigaction(SIGALRM, &rsa, NULL) < 0)
     {
         printf("sigaction error.");
     }
@@ -376,7 +402,7 @@ int uthread_terminate(int tid)
 
     if (notValidTid(tid))
     {
-        cerr<<LIB_ERR<<"";
+        cerr << LIB_ERR << "";
         unblock_signals();
         return -1;
     }
@@ -496,7 +522,6 @@ int uthread_sleep(unsigned int usec)
     block_signals();
     if (running_tid == 0)
     {
-//        cerr << LIB_ERR << "Main thread can't sleep. Its El Pacino.";
         cerr << LIB_ERR << "it's illegal to put the main thread to sleep\n";
         unblock_signals();
         return -1;
@@ -509,7 +534,6 @@ int uthread_sleep(unsigned int usec)
     //TODO: Check that this is OK
     reset_alarm();
     switch_threads(SLEEP);
-
     unblock_signals();
     return 0;
 
