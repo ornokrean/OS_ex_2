@@ -116,14 +116,7 @@ int notValidTid(int tid)
                  << "The thread id is invalid (it needs to be between 0 and " << MAX_THREAD_NUM << " ).\n";
         } else
         {
-//            printf("        Running: %d\n",running_tid);
-//            printf("        Ready:\n");
-//            for(auto i: ready){
-//                printf("           %d\n",i);
-//
-//            }
-//            cerr << LIB_ERR
-//                 << "No thread with id " << tid << ".\n";
+            cerr << LIB_ERR << "No thread with id " << tid << ".\n";
 
         }
         return -1;
@@ -230,7 +223,7 @@ void wake_thread(int sig)
     {
         int tid = to_wakeup.peek()->id;
         to_wakeup.pop();
-        printf("                          Waking up %d\n",tid);
+        printf("                          Waking up %d\n", tid);
         sleeping.remove(tid);
         // Case: Thread wasn't blocked while sleeping:
         if (threads[tid]->getState() == READY)
@@ -244,7 +237,7 @@ void wake_thread(int sig)
             timersub(&to_wakeup.peek()->awaken_tv, &curr_time, &rtimer.it_value);
         }
 //        reset_alarm();
-    } while (to_wakeup.peek()!= nullptr && (rtimer.it_value.tv_sec <= 0 || rtimer.it_value.tv_usec <= 0));
+    } while (to_wakeup.peek() != nullptr && (rtimer.it_value.tv_sec <= 0 || rtimer.it_value.tv_usec <= 0));
     reset_alarm();
     unblock_signals();
 }
