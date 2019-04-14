@@ -85,36 +85,13 @@ void reset_alarm()
     block_signals();
     if (to_wakeup.peek() != nullptr)
     {
-        struct timeval  curr_time;
+        struct timeval curr_time;
         gettimeofday(&curr_time, nullptr);
         timersub(&to_wakeup.peek()->awaken_tv, &curr_time, &rtimer.it_value);
-//        while (end_time.tv_sec - curr_time.tv_sec <= 0 || end_time.tv_usec - curr_time.tv_usec <= 0)
-//        {
-//            int tid = to_wakeup.peek()->id;
-//            to_wakeup.pop();
-//
-//            sleeping.remove(tid);
-//            //Case: Thread wasn't blocked while it was sleeping:
-//            if (threads[tid]->getState() == READY)
-//            {
-//                ready.push_back(tid);
-//            }
-//            //Case: No more threads to wake up: No need to set a new alarm:
-//            if (to_wakeup.peek() == nullptr)
-//            {
-//                unblock_signals();
-//                return;
-//            }
-//            end_time = to_wakeup.peek()->awaken_tv;
-//            gettimeofday(&curr_time, nullptr);
-//
-//        }
-//        rtimer.it_value.tv_sec = end_time.tv_sec - curr_time.tv_sec;
-//        rtimer.it_value.tv_usec = end_time.tv_usec - curr_time.tv_usec;
 
     } else
     {
-        //TODO: Plaster
+        //Stop the timer:
         rtimer.it_value.tv_sec = 0;
         rtimer.it_value.tv_usec = 0;
     }
@@ -139,9 +116,14 @@ int notValidTid(int tid)
                  << "The thread id is invalid (it needs to be between 0 and " << MAX_THREAD_NUM << " ).\n";
         } else
         {
-
-            cerr << LIB_ERR
-                 << "No thread with id <<" << tid << ".\n";
+//            printf("        Running: %d\n",running_tid);
+//            printf("        Ready:\n");
+//            for(auto i: ready){
+//                printf("           %d\n",i);
+//
+//            }
+//            cerr << LIB_ERR
+//                 << "No thread with id " << tid << ".\n";
 
         }
         return -1;
@@ -212,6 +194,9 @@ void switch_threads(int to_state)
 
 }
 
+/*
+ * Runs the next thread in the ready queue.
+ * */
 void runThread()
 {
     // Update the total number of quantums and the quantums run by the specific thread.
@@ -227,6 +212,7 @@ void runThread()
 //        printf("setitimer error.");
 //    }
 
+    unblock_signals();
     // Start running the next process:
     siglongjmp(*threads[running_tid]->getEnv(), 1);
 }
@@ -239,30 +225,26 @@ void timer_handler(int sig)
 
 void wake_thread(int sig)
 {
-    cerr << "Entered WAKE UP!!!!! \n";
     block_signals();
     do
     {
-        // Get the id of the thread to wake up
+        int tid = to_wakeup.peek()->id;
+        to_wakeup.pop();
+        printf("                          Waking up %d\n",tid);
+        sleeping.remove(tid);
+        // Case: Thread wasn't blocked while sleeping:
+        if (threads[tid]->getState() == READY)
+        {
+            ready.push_back(tid);
+        }
+        struct timeval curr_time;
+        gettimeofday(&curr_time, nullptr);
         if (to_wakeup.peek() != nullptr)
         {
-            int tid = to_wakeup.peek()->id;
-            to_wakeup.pop();
-            cerr << "Waking up: %d\n" << tid;
-            sleeping.remove(tid);
-            // Case: Thread wasn't blocked while sleeping:
-            if (threads[tid]->getState() == READY)
-            {
-                ready.push_back(tid);
-            }
-            struct timeval curr_time;
-            gettimeofday(&curr_time, nullptr);
-            if (to_wakeup.peek() != nullptr)
-            {
-                timersub(&to_wakeup.peek()->awaken_tv, &curr_time, &rtimer.it_value);
-            }
+            timersub(&to_wakeup.peek()->awaken_tv, &curr_time, &rtimer.it_value);
         }
-    } while (rtimer.it_value.tv_sec <= 0 || rtimer.it_value.tv_usec <= 0);
+//        reset_alarm();
+    } while (to_wakeup.peek()!= nullptr && (rtimer.it_value.tv_sec <= 0 || rtimer.it_value.tv_usec <= 0));
     reset_alarm();
     unblock_signals();
 }
@@ -376,7 +358,6 @@ int uthread_spawn(void (*f)(void))
 int uthread_terminate(int tid)
 {
     block_signals();
-    //TODO:  Delete Sleep everywhere
     //Case: main suicide
     if (tid == 0)
     {
@@ -384,7 +365,6 @@ int uthread_terminate(int tid)
         ready.clear();
         blocked.clear();
         sleeping.clear();
-
         // Free memory of each thread.
         for (int remove = 0; remove < threads.size(); ++remove)
         {
