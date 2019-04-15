@@ -356,7 +356,7 @@ int uthread_terminate(int tid)
         blocked.clear();
         sleeping.clear();
         // Free memory of each thread.
-        for (int remove = 0; remove < threads.size(); ++remove)
+        for (unsigned int remove = 0; remove < threads.size(); ++remove)
         {
             Thread *toDelete = threads[remove];
             to_wakeup.remove_thread(remove);
