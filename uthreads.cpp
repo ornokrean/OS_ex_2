@@ -6,7 +6,7 @@
 #include <list>
 #include <vector>
 #include <iostream>
-#include "Thread.h"
+#include "thread.h"
 #include <setjmp.h>
 #include <unistd.h>
 #include <algorithm>

@@ -5,9 +5,4 @@
 
 
 
-We got the pid of 21123 and ran the kill command: "kill 21123".
-using strace we learned that the only signal sent was:
-kill(21123, SIGTERM) = 0
-the trigger was hitting the enter key on the keyboard, and the operating system should handle them.
-the command was sent through the shell.
 
