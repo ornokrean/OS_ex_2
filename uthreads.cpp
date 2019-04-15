@@ -75,6 +75,7 @@ void unblock_signals()
 }
 
 
+
 /*
  * Resets the alarm of the real timer of the sleeping threads.
  *
@@ -88,8 +89,8 @@ void reset_alarm()
         struct timeval curr_time;
         gettimeofday(&curr_time, nullptr);
         timersub(&to_wakeup.peek()->awaken_tv, &curr_time, &rtimer.it_value);
-
-    } else
+    }
+    else
     {
         //Stop the timer:
         rtimer.it_value.tv_sec = 0;
@@ -236,7 +237,6 @@ void wake_thread(int sig)
         {
             timersub(&to_wakeup.peek()->awaken_tv, &curr_time, &rtimer.it_value);
         }
-//        reset_alarm();
     } while (to_wakeup.peek() != nullptr && (rtimer.it_value.tv_sec <= 0 || rtimer.it_value.tv_usec <= 0));
     reset_alarm();
     unblock_signals();
@@ -498,6 +498,11 @@ int uthread_sleep(unsigned int usec)
         cerr << LIB_ERR << "it's illegal to put the main thread to sleep\n";
         unblock_signals();
         return -1;
+    }
+    if (usec==0){
+        switch_threads(READY);
+        unblock_signals();
+        return 0;
     }
     struct timeval etime;
     gettimeofday(&etime, nullptr);
