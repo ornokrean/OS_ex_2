@@ -35,11 +35,7 @@ void f (void)
             if (i == 3 && j == 0)
             {
                 j++;
-                cout<<"goodnight f\n";
-
-                uthread_sleep(1);
-                cout<<"goodmorning f\n";
-
+                uthread_sleep(2);
             }
             if (i == 6 && j == 1)
             {
@@ -49,8 +45,6 @@ void f (void)
             {
                 j++;
                 cout << "          **f end**" << endl;
-                cerr<<"f";
-
                 uthread_terminate(uthread_get_tid());
                 return;
             }
@@ -72,8 +66,6 @@ void g (void)
             {
                 j++;
                 cout << "          **g end**" << endl;
-                cerr<<"g";
-
                 uthread_terminate(uthread_get_tid());
                 return;
             }
@@ -135,8 +127,6 @@ int main(void)
                 //cout << "i: " << i << endl;
                 cout << "          ******end******" << endl;
                 cout << "total quantums:  " << uthread_get_total_quantums() << endl;
-                cerr<<"maiin";
-
                 uthread_terminate(0);
                 return 0;
             }

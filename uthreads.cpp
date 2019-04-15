@@ -24,36 +24,43 @@
 
 //============================ Globals ============================//
 using namespace std;
+// Total number of quantums started:
+int total_quantum_num = 1;
+// The id of the currently running thread:
+int running_tid = 0;
+// The total number of active threads:
+int num_of_threads = 0;
 
-int total_quantum_num = 1; //total number of quantums started
-int running_tid = 0; // The id of the currently running thread
-int num_of_threads = 0; // The total number of threads
+// Signal set for blocked signals:
 sigset_t blocked_signals;
 
 
 struct sigaction sa;
-// The virtual timer that handles quantums
+// The virtual timer that handles quantums:
 struct itimerval vtimer;
 
 struct sigaction rsa;
-// The real timer that handles sleeping threads
+// The real timer that handles sleeping threads:
 struct itimerval rtimer;
 
-sigjmp_buf env[MAX_THREAD_NUM];
-// Queue for all ready threads
+// Queue for all ready threads:
 list<int> ready;
-// Queue for blocked threads
+// Queue for blocked threads:
 list<int> blocked;
-// Queue for sleeping threads
+// Queue for sleeping threads:
 list<int> sleeping;
 
+// Vector of all threads
 vector<Thread *> threads;
 
+// List of sleeping threads to wake up.
 SleepingThreadsList to_wakeup;
 
-void runThread();
+//============================ Function Declaration ============================//
 
+void runThread();
 void wake_thread(int sig);
+
 //============================ Helper Functions ============================//
 
 /*
@@ -75,7 +82,6 @@ void unblock_signals()
 }
 
 
-
 /*
  * Resets the alarm of the real timer of the sleeping threads.
  *
@@ -89,8 +95,7 @@ void reset_alarm()
         struct timeval curr_time;
         gettimeofday(&curr_time, nullptr);
         timersub(&to_wakeup.peek()->awaken_tv, &curr_time, &rtimer.it_value);
-    }
-    else
+    } else
     {
         //Stop the timer:
         rtimer.it_value.tv_sec = 0;
@@ -114,7 +119,7 @@ int notValidTid(int tid)
         if (tid < 0)
         {
             cerr << LIB_ERR
-                 << "The thread id is invalid (it needs to be between 0 and " << MAX_THREAD_NUM << " ).\n";
+                 << "The thread id is invalid (it needs to be between 0 and " << MAX_THREAD_NUM - 1 << " ).\n";
         } else
         {
             cerr << LIB_ERR << "No thread with id " << tid << ".\n";
@@ -177,11 +182,6 @@ void switch_threads(int to_state)
             // will be returned to ready queue
             threads[running_tid]->setState(READY);
         }
-//        printf("Ready list:\n");
-//        for (auto i: ready)
-//        {
-//            printf("%d\n", i);
-//        }
         runThread();
     }
     unblock_signals();
@@ -199,24 +199,23 @@ void runThread()
     running_tid = ready.front();
     ready.pop_front();
     threads[running_tid]->setState(RUNNING);
-
-//    // Restarts the timer in the case of starting after a blocked thread which didn't finish its quantum.
-//    if (setitimer(ITIMER_VIRTUAL, &timer, NULL))
-//    {
-//        printf("setitimer error.");
-//    }
-
     unblock_signals();
     // Start running the next process:
     siglongjmp(*threads[running_tid]->getEnv(), 1);
 }
 
+/*
+ * Handler for the virtual timers Signal - SIGVTALRM
+ * */
 void timer_handler(int sig)
 {
     switch_threads(READY);
 }
 
-
+/*
+ * Handler for the real timers Signal - SIGALRM
+ * The function wakes up all sleeping threads whose time to wake up has passed.
+ * */
 void wake_thread(int sig)
 {
     block_signals();
@@ -224,7 +223,6 @@ void wake_thread(int sig)
     {
         int tid = to_wakeup.peek()->id;
         to_wakeup.pop();
-        printf("                          Waking up %d\n", tid);
         sleeping.remove(tid);
         // Case: Thread wasn't blocked while sleeping:
         if (threads[tid]->getState() == READY)
@@ -273,8 +271,7 @@ int uthread_init(int quantum_usecs)
 
     to_wakeup = SleepingThreadsList();
 
-    //total_quantum_num = 1;
-
+    // Set Signal functions:
     sa.sa_handler = &timer_handler;
     if (sigaction(SIGVTALRM, &sa, NULL) < 0)
     {
@@ -288,6 +285,7 @@ int uthread_init(int quantum_usecs)
     }
 
 
+    //
     // first time interval, seconds part
     vtimer.it_value.tv_sec = quantum_usecs / 1000000;
     // first time interval, microseconds part
@@ -302,7 +300,6 @@ int uthread_init(int quantum_usecs)
     {
         printf("setitimer error. virtual timer");
     }
-
     return 0;
 }
 
@@ -375,7 +372,6 @@ int uthread_terminate(int tid)
 
     if (notValidTid(tid))
     {
-        cerr << LIB_ERR << "";
         unblock_signals();
         return -1;
     }
@@ -395,7 +391,7 @@ int uthread_terminate(int tid)
     //start the clock once again
     reset_alarm();
 
-    //Case: suicide
+    //Case: Terminated self
     if (running_tid == tid)
     {
         runThread();
@@ -441,7 +437,6 @@ int uthread_block(int tid)
     //Case: Thread is ready:
     if (threads[tid]->getState() == READY)
     {
-        //TODO; Handle sleeping
         ready.remove(tid);
         blocked.push_back(tid);
         threads[tid]->setState(BLOCKED);
@@ -470,7 +465,6 @@ int uthread_resume(int tid)
     //Case: Thread is blocked:
     if (threads[tid]->getState() == BLOCKED)
     {
-        // TODO: DEBILI
         // Not sleeping:
         if (!(find(sleeping.begin(), sleeping.end(), tid) != sleeping.end()))
         {
@@ -499,7 +493,8 @@ int uthread_sleep(unsigned int usec)
         unblock_signals();
         return -1;
     }
-    if (usec==0){
+    if (usec == 0)
+    {
         switch_threads(READY);
         unblock_signals();
         return 0;
@@ -509,7 +504,6 @@ int uthread_sleep(unsigned int usec)
     etime.tv_sec += usec / 1000000;
     etime.tv_usec += usec % 1000000;
     to_wakeup.add(running_tid, etime);
-    //TODO: Check that this is OK
     reset_alarm();
     switch_threads(SLEEP);
     unblock_signals();

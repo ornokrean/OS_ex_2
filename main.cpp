@@ -293,7 +293,7 @@ int main()
         }
     }
 
-    if (print) {cout << "MAIN TERMINATES WILE j IS ALIVE" << endl;}
+    if (print) {cout << "MAIN TERMINATES WHILE j IS ALIVE" << endl;}
     int me = uthread_get_tid();
     uthread_terminate(me);
 }
